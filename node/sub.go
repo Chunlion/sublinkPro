@@ -692,6 +692,98 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 	return changedNodeIDs, usageInfo, err
 }
 
+type subscriptionNodeMatcher struct {
+	byLink     map[string][]models.Node
+	byHash     map[string][]models.Node
+	byHashName map[string]map[string][]models.Node
+	byHashSort map[string]map[int][]models.Node
+	matched    map[int]bool
+}
+
+func newSubscriptionNodeMatcher(nodes []models.Node) *subscriptionNodeMatcher {
+	matcher := &subscriptionNodeMatcher{
+		byLink:     make(map[string][]models.Node),
+		byHash:     make(map[string][]models.Node),
+		byHashName: make(map[string]map[string][]models.Node),
+		byHashSort: make(map[string]map[int][]models.Node),
+		matched:    make(map[int]bool, len(nodes)),
+	}
+	for _, node := range nodes {
+		if link := strings.TrimSpace(node.Link); link != "" {
+			matcher.byLink[link] = append(matcher.byLink[link], node)
+		}
+		if node.ContentHash == "" {
+			continue
+		}
+		matcher.byHash[node.ContentHash] = append(matcher.byHash[node.ContentHash], node)
+
+		name := subscriptionNodeOriginalName(node)
+		if name != "" {
+			if matcher.byHashName[node.ContentHash] == nil {
+				matcher.byHashName[node.ContentHash] = make(map[string][]models.Node)
+			}
+			matcher.byHashName[node.ContentHash][name] = append(matcher.byHashName[node.ContentHash][name], node)
+		}
+		if node.SourceSort > 0 {
+			if matcher.byHashSort[node.ContentHash] == nil {
+				matcher.byHashSort[node.ContentHash] = make(map[int][]models.Node)
+			}
+			matcher.byHashSort[node.ContentHash][node.SourceSort] = append(matcher.byHashSort[node.ContentHash][node.SourceSort], node)
+		}
+	}
+	return matcher
+}
+
+func subscriptionNodeOriginalName(node models.Node) string {
+	name := strings.TrimSpace(node.LinkName)
+	if name == "" {
+		name = strings.TrimSpace(node.Name)
+	}
+	return name
+}
+
+func (matcher *subscriptionNodeMatcher) isMatched(id int) bool {
+	if matcher == nil {
+		return false
+	}
+	return matcher.matched[id]
+}
+
+func (matcher *subscriptionNodeMatcher) firstUnmatched(nodes []models.Node) (models.Node, bool) {
+	for _, node := range nodes {
+		if !matcher.matched[node.ID] {
+			matcher.matched[node.ID] = true
+			return node, true
+		}
+	}
+	return models.Node{}, false
+}
+
+func (matcher *subscriptionNodeMatcher) match(link, contentHash, linkName string, sourceSort int) (models.Node, bool) {
+	if matcher == nil {
+		return models.Node{}, false
+	}
+	if contentHash != "" && sourceSort > 0 {
+		if node, ok := matcher.firstUnmatched(matcher.byHashSort[contentHash][sourceSort]); ok {
+			return node, true
+		}
+	}
+	if link != "" {
+		if node, ok := matcher.firstUnmatched(matcher.byLink[link]); ok {
+			return node, true
+		}
+	}
+	if contentHash != "" {
+		if node, ok := matcher.firstUnmatched(matcher.byHashName[contentHash][strings.TrimSpace(linkName)]); ok {
+			return node, true
+		}
+		if node, ok := matcher.firstUnmatched(matcher.byHash[contentHash]); ok {
+			return node, true
+		}
+	}
+	return models.Node{}, false
+}
+
 // scheduleClashToNodeLinks 将 Clash 代理配置转换为节点链接并保存到数据库
 // ctx: context 用于任务取消和超时控制
 // id: 订阅ID
@@ -840,40 +932,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	// 在基于原始名称完成同 hash 分类后，再对同机场内重名节点追加顺序编号，避免影响内容哈希去重语义。
 	proxys = applyAirportIntraNodeUniquify(airport, proxys)
 
-	// 创建现有节点的映射表（以 ContentHash 为键，用于同机场去重判断与更新）
-	existingNodeByContentHash := make(map[string]models.Node)
-	existingNodeByLink := make(map[string]models.Node)
-	// 对信息节点 hash，按原始名称记录本机场已有节点（用户备注不会影响重新拉取匹配）
-	existingInfoNodeNames := make(map[string]map[string]models.Node)
-	existingInfoNodeSorts := make(map[string]map[int]models.Node)
-	matchedExistingNodeIDs := make(map[int]bool)
-	for _, node := range existingNodes {
-		if strings.TrimSpace(node.Link) != "" {
-			existingNodeByLink[node.Link] = node
-		}
-		if node.ContentHash != "" {
-			existingNodeByContentHash[node.ContentHash] = node
-			// 如果该 hash 是信息节点，按名称建立索引
-			if infoNodeHashes[node.ContentHash] {
-				if existingInfoNodeNames[node.ContentHash] == nil {
-					existingInfoNodeNames[node.ContentHash] = make(map[string]models.Node)
-				}
-				name := strings.TrimSpace(node.LinkName)
-				if name == "" {
-					name = strings.TrimSpace(node.Name)
-				}
-				existingInfoNodeNames[node.ContentHash][name] = node
-				if node.SourceSort > 0 {
-					if existingInfoNodeSorts[node.ContentHash] == nil {
-						existingInfoNodeSorts[node.ContentHash] = make(map[int]models.Node)
-					}
-					if _, exists := existingInfoNodeSorts[node.ContentHash][node.SourceSort]; !exists {
-						existingInfoNodeSorts[node.ContentHash][node.SourceSort] = node
-					}
-				}
-			}
-		}
-	}
+	// 创建现有节点匹配器；每个旧节点在本轮同步中只能被一个新节点认领。
+	existingMatcher := newSubscriptionNodeMatcher(existingNodes)
 
 	// 读取全局配置：是否启用跨机场去重（默认启用）
 	crossAirportDedupVal, _ := models.GetSetting("cross_airport_dedup_enabled")
@@ -890,9 +950,6 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 
 	// 更新任务总数（此时已知道需要处理的节点数量）
 	reporter.UpdateTotal(len(proxys))
-
-	// 记录本次获取到的节点 ContentHash（用于判断需要删除的节点）
-	currentHashes := make(map[string]bool)
 
 	// 批量收集：新增节点列表（稍后批量写入）
 	nodesToAdd := make([]models.Node, 0)
@@ -980,18 +1037,13 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 			}
 		}
 
-		// 记录本次获取到的节点 ContentHash
-		currentHashes[contentHash] = true
-
-		// 判断节点是否已存在（全库去重：使用 ContentHash 判断）
 		var nodeStatus string
-		if existingNode, ok := existingNodeByLink[link]; ok {
+		if existingNode, ok := existingMatcher.match(link, contentHash, proxy.Name, Node.SourceSort); ok {
 			skipCount++
 			nodeStatus = "skipped"
-			matchedExistingNodeIDs[existingNode.ID] = true
 			backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
 
-			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.SourceSort != Node.SourceSort {
+			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
 				nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash))
 				updateCount++
 				nodeStatus = "updated"
@@ -1001,65 +1053,11 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 			} else {
 				utils.Debug("⏭️ 节点【%s】按原始链接匹配到现有节点，跳过", proxy.Name)
 			}
+			allNodeHashes[contentHash] = true
 		} else if allNodeHashes[contentHash] {
 			skipCount++
 			nodeStatus = "skipped"
-			// 节点内容已存在 - 优先判断是否为本机场已存在节点
-			if _, ok := existingNodeByContentHash[contentHash]; ok {
-				// 属于本机场
-				if infoNodeHashes[contentHash] {
-					// 信息节点：用名称精确匹配（同 hash 对应多个已有节点）
-					existingByName, nameExists := existingInfoNodeNames[contentHash][proxy.Name]
-					existingBySort, sortExists := existingInfoNodeSorts[contentHash][Node.SourceSort]
-					matchedInfoNode := models.Node{}
-					infoNodeMatched := false
-					if nameExists {
-						matchedInfoNode = existingByName
-						infoNodeMatched = true
-					} else if sortExists && !matchedExistingNodeIDs[existingBySort.ID] {
-						matchedInfoNode = existingBySort
-						infoNodeMatched = true
-					}
-					if infoNodeMatched {
-						matchedExistingNodeIDs[matchedInfoNode.ID] = true
-						backfilledCountry := backfillExistingNodeCountry(matchedInfoNode, proxy.Name)
-						// 该名称的信息节点已存在，检查链接或顺序是否变化
-						if matchedInfoNode.ContentHash != contentHash || matchedInfoNode.LinkName != proxy.Name || matchedInfoNode.Link != link || matchedInfoNode.SourceSort != Node.SourceSort {
-							nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(matchedInfoNode, proxy.Name, link, Node.SourceSort, contentHash))
-							updateCount++
-							nodeStatus = "updated"
-							utils.Info("✏️ 信息节点【%s】链接/顺序已变更，将更新", proxy.Name)
-						} else if backfilledCountry {
-							nodeStatus = "updated"
-						} else {
-							utils.Debug("⏭️ 信息节点【%s】在本机场已存在，跳过", proxy.Name)
-						}
-					} else {
-						// 该名称的信息节点不存在（上游新增了一个信息节点），入库
-						nodesToAdd = append(nodesToAdd, Node)
-						skipCount--
-						addSuccessCount++
-						nodeStatus = "added"
-						utils.Info("📌 信息节点【%s】为新名称，允许入库", proxy.Name)
-					}
-				} else {
-					// 普通节点：用 hash 匹配，检查名称或链接是否变化
-					existingNode := existingNodeByContentHash[contentHash]
-					matchedExistingNodeIDs[existingNode.ID] = true
-					backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
-
-					if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
-						nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash))
-						updateCount++
-						nodeStatus = "updated"
-						utils.Info("✏️ 节点【%s】原始名称/链接/顺序已变更，将更新 [旧原始名称: %s]", proxy.Name, existingNode.LinkName)
-					} else if backfilledCountry {
-						nodeStatus = "updated"
-					} else {
-						utils.Debug("⏭️ 节点【%s】在本机场已存在，跳过", proxy.Name)
-					}
-				}
-			} else if enableCrossDedup {
+			if enableCrossDedup {
 				// 跨机场去重开启：若全库已存在该内容，则跳过
 				if existingNode, exists := models.GetNodeByContentHash(contentHash); exists {
 					// 检查是否为同 hash 不同名的信息节点（预扫描已确定）
@@ -1122,50 +1120,31 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 
 	// 3. 收集需要删除的节点ID（本次订阅没有获取到但数据库中存在的节点）
 	nodeIDsToDelete := make([]int, 0)
-	for nodeID, node := range existingNodeByID {
-		if matchedExistingNodeIDs[nodeID] {
-			continue
-		}
-		// 使用 ContentHash 判断节点是否在本次拉取中
-		if !currentHashes[node.ContentHash] {
+	for nodeID := range existingNodeByID {
+		if !existingMatcher.isMatched(nodeID) {
 			nodeIDsToDelete = append(nodeIDsToDelete, nodeID)
-			continue
-		}
-
-		// 信息节点：hash 仍在，但需要按名称精细判断，避免名称变化/部分移除导致垃圾节点残留（数据膨胀）
-		if infoNodeHashes[node.ContentHash] {
-			if matchedExistingNodeIDs[nodeID] {
-				continue
-			}
-			currentNames := currentNamesByHash[node.ContentHash]
-			name := strings.TrimSpace(node.LinkName)
-			if name == "" {
-				name = strings.TrimSpace(node.Name)
-			}
-			if len(currentNames) == 0 || !currentNames[name] {
-				nodeIDsToDelete = append(nodeIDsToDelete, nodeID)
-			}
 		}
 	}
 
 	// 4. 批量写入数据库（一次性操作，减少数据库I/O）
-	// 批量添加新节点
-	if len(nodesToAdd) > 0 {
-		// 检查任务是否已取消或超时（批量操作前检查）
+	if len(nodeIDsToDelete) > 0 || len(nodesToUpdate) > 0 || len(nodesToAdd) > 0 {
 		select {
 		case <-ctx.Done():
-			utils.Warn("任务在批量添加节点前被取消或超时")
+			utils.Warn("任务在批量写入节点前被取消或超时")
 			reporter.ReportFail("任务执行超时或被取消")
 			return nil, fmt.Errorf("任务已取消或超时")
 		default:
 		}
+	}
 
-		if err := models.BatchAddNodes(nodesToAdd); err != nil {
-			utils.Error("❌批量添加节点失败：%v", err)
-			// 重置计数，因为添加失败
-			addSuccessCount = 0
+	// 先删除失效节点，释放可能被复用的唯一 link_hash。
+	deleteCount := 0
+	if len(nodeIDsToDelete) > 0 {
+		if err := models.BatchDel(nodeIDsToDelete); err != nil {
+			utils.Error("❌批量删除节点失败：%v", err)
 		} else {
-			utils.Info("✅批量添加 %d 个节点成功", len(nodesToAdd))
+			deleteCount = len(nodeIDsToDelete)
+			utils.Info("🗑️批量删除 %d 个失效节点", deleteCount)
 		}
 	}
 
@@ -1180,14 +1159,13 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 		}
 	}
 
-	// 批量删除失效节点
-	deleteCount := 0
-	if len(nodeIDsToDelete) > 0 {
-		if err := models.BatchDel(nodeIDsToDelete); err != nil {
-			utils.Error("❌批量删除节点失败：%v", err)
+	// 批量添加新节点
+	if len(nodesToAdd) > 0 {
+		if err := models.BatchAddNodes(nodesToAdd); err != nil {
+			utils.Error("❌批量添加节点失败：%v", err)
+			addSuccessCount = 0
 		} else {
-			deleteCount = len(nodeIDsToDelete)
-			utils.Info("🗑️批量删除 %d 个失效节点", deleteCount)
+			utils.Info("✅批量添加 %d 个节点成功", len(nodesToAdd))
 		}
 	}
 

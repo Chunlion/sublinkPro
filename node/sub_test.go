@@ -837,6 +837,70 @@ func TestScheduleClashToNodeLinksPreservesCustomRemarkForSameHashRenamedNode(t *
 	}
 }
 
+func TestScheduleClashToNodeLinksKeepsRemarkWhenSameHashRenameCollidesWithDeletedNode(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "same-hash-collision-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	baseProxy := protocol.Proxy{
+		Name:     "slot-a",
+		Type:     "ss",
+		Server:   "same-collision.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	remarkNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, baseProxy, "", 1)
+	removedProxy := baseProxy
+	removedProxy.Name = "slot-b"
+	removedNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, removedProxy, "", 2)
+	if remarkNode.ContentHash != removedNode.ContentHash {
+		t.Fatalf("test setup content hashes differ: %q != %q", remarkNode.ContentHash, removedNode.ContentHash)
+	}
+	if err := models.UpdateNodeFields(remarkNode.ID, map[string]any{
+		"name":      "custom-slot-a",
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("customize node remark: %v", err)
+	}
+
+	renamedProxy := baseProxy
+	renamedProxy.Name = "slot-b"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{renamedProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != remarkNode.ID {
+		t.Fatalf("node ID = %d, want remark node ID %d; removed node ID was %d", nodes[0].ID, remarkNode.ID, removedNode.ID)
+	}
+	if nodes[0].Name != "custom-slot-a" || nodes[0].NameMode != models.NodeNameModeRemark {
+		t.Fatalf("remark node was not preserved: Name=%q NameMode=%q", nodes[0].Name, nodes[0].NameMode)
+	}
+	if nodes[0].LinkName != "slot-b" {
+		t.Fatalf("node link name = %q, want renamed upstream name", nodes[0].LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != remarkNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, remarkNode.ID)
+	}
+}
+
 func TestScheduleClashToNodeLinksPreservesRemarkWhenExistingContentHashMissing(t *testing.T) {
 	setupSubscriptionCountryBackfillTestDB(t)
 
