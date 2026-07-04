@@ -272,7 +272,15 @@ func (node Node) UseRemarkName() bool {
 
 // ShouldSyncNameFromLink 判断上游原始名称变化时是否应同步覆盖备注名称。
 func (node Node) ShouldSyncNameFromLink() bool {
-	return NormalizeNodeNameMode(node.NameMode) == NodeNameModeLink || strings.TrimSpace(node.LinkName) == strings.TrimSpace(node.Name)
+	trimmedName := strings.TrimSpace(node.Name)
+	trimmedLinkName := strings.TrimSpace(node.LinkName)
+
+	// 只有历史默认状态才同步备注：
+	// 1. 备注为空
+	// 2. 备注与原始名称相同，说明用户尚未自定义备注
+	//
+	// NameMode 只控制实际输出名称，不应该决定是否覆盖 Name 字段。
+	return trimmedName == "" || trimmedName == trimmedLinkName
 }
 
 // NameAfterLinkNameUpdate 返回原始名称刷新后应保存的备注名称。

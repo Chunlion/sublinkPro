@@ -64,6 +64,18 @@ func TestNodeNameSyncFromLinkName(t *testing.T) {
 			newLinkName: "新名称",
 			want:        "我的备注",
 		},
+		{
+			name:        "custom remark is preserved even in link mode",
+			node:        Node{Name: "日本测试", LinkName: "日本 01", NameMode: NodeNameModeLink},
+			newLinkName: "日本 02",
+			want:        "日本测试",
+		},
+		{
+			name:        "empty remark follows upstream name",
+			node:        Node{Name: "", LinkName: "旧名称", NameMode: NodeNameModeLink},
+			newLinkName: "新名称",
+			want:        "新名称",
+		},
 	}
 
 	for _, tt := range tests {
