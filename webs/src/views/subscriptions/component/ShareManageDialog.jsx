@@ -33,6 +33,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import HistoryIcon from '@mui/icons-material/History';
 import DownloadIcon from '@mui/icons-material/Download';
+import SortIcon from '@mui/icons-material/Sort';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 
@@ -62,6 +63,7 @@ import ShareExportDialog from './ShareExportDialog';
 const EXPIRE_TYPE_NEVER = 0;
 const EXPIRE_TYPE_DAYS = 1;
 const EXPIRE_TYPE_DATETIME = 2;
+const SHARE_PAGE_SIZE = 50;
 
 const NATIVE_CLIENT_LINKS = [
   { key: 'clash', client: 'clash' },
@@ -82,8 +84,6 @@ const EXPANDED_CLIENT_LINKS = [
   { key: 'json', client: 'json' }
 ];
 
-/**
- */
 export default function ShareManageDialog({ open, subscription, onClose, showMessage }) {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
@@ -98,7 +98,13 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 排序和筛选状态
+  const [sortBy, setSortBy] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [ipFilter, setIpFilter] = useState('');
 
   // 分页状态
   const [page, setPage] = useState(1);
@@ -140,6 +146,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInfo, setConfirmInfo] = useState({ title: '', content: '', onConfirm: null });
+  const dialogContentRef = useRef(null);
 
   const getServerUrl = useCallback(() => {
     if (systemDomainConfig) {
@@ -160,7 +167,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
   };
 
   const fetchShares = useCallback(
-    async (keyword = '', isSearch = false) => {
+    async (keyword = '', isSearch = false, customSortBy = null, customSortOrder = null) => {
       if (!subscription?.ID) return;
       if (isSearch) {
         setSearching(true);
@@ -168,12 +175,22 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
         setLoading(true);
       }
       try {
-        const res = await getShares(subscription.ID, 1, 100, keyword); // 首次加载100条，支持关键词搜索
+        // 检测是否为IP地址
+        const isIP = isIPAddress(keyword);
+        const ipFilterValue = isIP ? keyword : '';
+        const keywordValue = isIP ? '' : keyword;
+
+        // 使用传入的排序参数,如果没有则使用当前状态
+        const actualSortBy = customSortBy !== null ? customSortBy : sortBy;
+        const actualSortOrder = customSortOrder !== null ? customSortOrder : sortOrder;
+
+        const res = await getShares(subscription.ID, 1, SHARE_PAGE_SIZE, keywordValue, ipFilterValue, actualSortBy, actualSortOrder);
         if (res.data?.items) {
           // 分页响应
           setShares(res.data.items);
           setHasMore(res.data.hasMore || false);
           setPage(1);
+          setIpFilter(ipFilterValue); // 保存IP筛选用于分页
         } else {
           // 兼容旧版本响应（返回所有数据）
           setShares(res.data || []);
@@ -189,7 +206,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
         }
       }
     },
-    [subscription?.ID]
+    [subscription?.ID, sortBy, sortOrder] // 添加sortBy和sortOrder依赖,但实际使用customSortBy/customSortOrder参数
   );
 
   const loadMoreShares = useCallback(async () => {
@@ -197,14 +214,18 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await getShares(subscription.ID, nextPage, 50, searchQuery); // 后续每次加载50条，带搜索关键词
+      const isIP = isIPAddress(searchQuery);
+      const res = await getShares(
+        subscription.ID,
+        nextPage,
+        SHARE_PAGE_SIZE,
+        isIP ? '' : searchQuery,
+        isIP ? searchQuery : ipFilter,
+        sortBy,
+        sortOrder
+      );
       if (res.data?.items) {
-        setShares((prev) => {
-          // 去重：使用 id 字段作为唯一标识
-          const existingIds = new Set(prev.map((s) => s.id));
-          const newItems = res.data.items.filter((s) => !existingIds.has(s.id));
-          return [...prev, ...newItems];
-        });
+        setShares((prev) => [...prev, ...res.data.items]);
         setHasMore(res.data.hasMore || false);
         setPage(nextPage);
       }
@@ -213,7 +234,40 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, subscription?.ID, page, searchQuery]);
+  }, [loadingMore, hasMore, subscription?.ID, page, searchQuery, ipFilter, sortBy, sortOrder]);
+
+  const handleSort = (field) => {
+    let newSortBy = sortBy;
+    let newSortOrder = sortOrder;
+    const defaultSortOrder = field === 'name' ? 'asc' : 'desc';
+
+    if (sortBy === field) {
+      if (sortOrder === defaultSortOrder) {
+        newSortBy = field;
+        newSortOrder = defaultSortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        newSortBy = '';
+        newSortOrder = 'desc';
+      }
+    } else {
+      newSortBy = field;
+      newSortOrder = defaultSortOrder;
+    }
+
+    // 先更新状态
+    setSortBy(newSortBy);
+    setSortOrder(newSortOrder);
+
+    // 直接用新值调用fetchShares
+    fetchShares(searchQuery, true, newSortBy, newSortOrder);
+  };
+
+  // 移除fetchSharesWithSort函数
+  // const fetchSharesWithSort = async (sortByParam, sortOrderParam) => {
+  //   ...
+  // };
+
+  // 移除排序相关的useEffect注释
 
   const fetchSubStoreTargets = useCallback(async () => {
     try {
@@ -234,12 +288,15 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
       setSelectedShares([]);
       setPage(1);
       setHasMore(true);
+      setSortBy('');
+      setSortOrder('desc');
 
       fetchSystemDomain();
-      fetchShares();
+      fetchShares('', false, '', 'desc'); // 明确传入初始排序参数
       fetchSubStoreTargets();
     }
-  }, [open, subscription?.ID, fetchShares, fetchSubStoreTargets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, subscription?.ID]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -527,11 +584,34 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
   const searchTimeoutRef = useRef(null);
 
   /**
+   * 检测输入是否为IP地址
+   */
+  const isIPAddress = (input) => {
+    if (!input || typeof input !== 'string') return false;
+    const trimmed = input.trim();
+
+    // IPv4 pattern
+    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4Pattern.test(trimmed)) {
+      // Validate octets are 0-255
+      const octets = trimmed.split('.');
+      return octets.every((octet) => {
+        const num = parseInt(octet, 10);
+        return num >= 0 && num <= 255;
+      });
+    }
+
+    // IPv6 pattern (simplified)
+    const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    return ipv6Pattern.test(trimmed);
+  };
+
+  /**
    * 从URL中提取token参数
    * @param {string} input - 用户输入
    * @returns {string} - 提取的token或原始输入
    */
-  const extractTokenFromInput = (input) => {
+  const extractTokenFromInput = useCallback((input) => {
     if (!input || typeof input !== 'string') return input;
 
     const trimmed = input.trim();
@@ -554,7 +634,24 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
 
     // 如果不是URL或未找到token，返回原始输入（用于名称模糊搜索）
     return trimmed;
-  };
+  }, []);
+
+  const handleManualRefresh = useCallback(async () => {
+    const scrollTop = dialogContentRef.current?.scrollTop || 0;
+    const searchKeyword = extractTokenFromInput(searchQuery);
+
+    setRefreshing(true);
+    try {
+      await fetchShares(searchKeyword, true);
+      requestAnimationFrame(() => {
+        if (dialogContentRef.current) {
+          dialogContentRef.current.scrollTop = scrollTop;
+        }
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [extractTokenFromInput, fetchShares, searchQuery]);
 
   const handleSearchChange = useCallback(
     (value) => {
@@ -570,7 +667,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
         setSelectedShares([]); // 搜索时清空选择
       }, 500);
     },
-    [fetchShares]
+    [extractTokenFromInput, fetchShares]
   );
 
   useEffect(() => {
@@ -809,8 +906,8 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Typography variant="h6">{t('subscriptions.share.title', { name: subscription?.Name })}</Typography>
               <Stack direction="row" spacing={1}>
-                <IconButton size="small" onClick={() => fetchShares(searchQuery)} disabled={loading} sx={iconButtonBaseSx}>
-                  <RefreshIcon fontSize="small" />
+                <IconButton size="small" onClick={handleManualRefresh} disabled={loading || searching || refreshing} sx={iconButtonBaseSx}>
+                  {refreshing ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
                 </IconButton>
                 <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleAdd}>
                   {t('subscriptions.share.addSingle')}
@@ -860,25 +957,87 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
               </Box>
             )}
 
-            <TextField
-              size="small"
-              fullWidth
-              placeholder={t('subscriptions.share.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: nestedPanelSurface,
-                  '&:hover': {
-                    bgcolor: withAlpha(palette.primary.main, isDark ? 0.08 : 0.04)
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                size="small"
+                fullWidth
+                placeholder={t('subscriptions.share.searchPlaceholder')}
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: nestedPanelSurface,
+                    '&:hover': {
+                      bgcolor: withAlpha(palette.primary.main, isDark ? 0.08 : 0.04)
+                    }
                   }
-                }
-              }}
-            />
+                }}
+              />
+            </Stack>
+
+            {/* 排序控件 */}
+            {shares.length > 0 && (
+              <Box
+                sx={{
+                  mt: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <Typography variant="caption" sx={{ color: secondaryText, fontSize: '0.8rem' }}>
+                  {t('subscriptions.share.sortLabel')}:
+                </Typography>
+                {['access_count', 'name'].map((field) => {
+                  const active = sortBy === field;
+                  const labelKey =
+                    field === 'access_count'
+                      ? active
+                        ? sortOrder === 'desc'
+                          ? 'sort.accessCountDesc'
+                          : 'sort.accessCountAsc'
+                        : 'sort.accessCount'
+                      : active
+                        ? sortOrder === 'desc'
+                          ? 'sort.nameDesc'
+                          : 'sort.nameAsc'
+                        : 'sort.name';
+
+                  return (
+                    <Button
+                      key={field}
+                      size="small"
+                      startIcon={<SortIcon />}
+                      onClick={() => handleSort(field)}
+                      sx={{
+                        minWidth: 'auto',
+                        px: 1.5,
+                        py: 0.5,
+                        fontSize: '0.75rem',
+                        textTransform: 'none',
+                        color: active ? palette.primary.main : secondaryText,
+                        bgcolor: active ? withAlpha(palette.primary.main, isDark ? 0.16 : 0.08) : nestedPanelSurface,
+                        border: '1px solid',
+                        borderColor: active ? withAlpha(palette.primary.main, isDark ? 0.38 : 0.22) : panelBorder,
+                        '&:hover': {
+                          bgcolor: active
+                            ? withAlpha(palette.primary.main, isDark ? 0.22 : 0.12)
+                            : withAlpha(palette.primary.main, isDark ? 0.08 : 0.04),
+                          borderColor: withAlpha(palette.primary.main, isDark ? 0.42 : 0.28)
+                        }
+                      }}
+                    >
+                      {t(`subscriptions.share.${labelKey}`)}
+                    </Button>
+                  );
+                })}
+              </Box>
+            )}
           </Stack>
         </DialogTitle>
 
         <DialogContent
+          ref={dialogContentRef}
           sx={{
             px: 2.5,
             pt: 2.5,

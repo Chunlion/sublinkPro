@@ -2548,7 +2548,19 @@
       "loadMore": "Load more",
       "noMore": "No more shares",
       "noResults": "No results found for your search",
-      "searchPlaceholder": "Search by name, token, or share link..."
+      "searchPlaceholder": "Search by name, token, IP address, or share link...",
+      "sortLabel": "Sort",
+      "sortNone": "Access count",
+      "sortDesc": "Access count ↓",
+      "sortAsc": "Access count ↑",
+      "sort": {
+        "accessCount": "Access count",
+        "accessCountDesc": "Access count ↓",
+        "accessCountAsc": "Access count ↑",
+        "name": "Name",
+        "nameAsc": "Name ↑",
+        "nameDesc": "Name ↓"
+      }
     },
     "form": {
       "title": {

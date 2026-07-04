@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sublink/cache"
@@ -102,6 +103,67 @@ func (s *SubscriptionShare) normalizeOptionalFields() {
 	} else {
 		s.LastAccessAt = normalizeOptionalTime(s.LastAccessAt)
 	}
+}
+
+func compareNaturalStrings(left, right string) int {
+	left = strings.ToLower(left)
+	right = strings.ToLower(right)
+	leftIndex, rightIndex := 0, 0
+
+	for leftIndex < len(left) && rightIndex < len(right) {
+		leftChar := left[leftIndex]
+		rightChar := right[rightIndex]
+
+		if isASCIIDigit(leftChar) && isASCIIDigit(rightChar) {
+			leftStart, rightStart := leftIndex, rightIndex
+			for leftIndex < len(left) && isASCIIDigit(left[leftIndex]) {
+				leftIndex++
+			}
+			for rightIndex < len(right) && isASCIIDigit(right[rightIndex]) {
+				rightIndex++
+			}
+
+			leftNumber := strings.TrimLeft(left[leftStart:leftIndex], "0")
+			rightNumber := strings.TrimLeft(right[rightStart:rightIndex], "0")
+			if leftNumber == "" {
+				leftNumber = "0"
+			}
+			if rightNumber == "" {
+				rightNumber = "0"
+			}
+			if len(leftNumber) != len(rightNumber) {
+				return len(leftNumber) - len(rightNumber)
+			}
+			if leftNumber != rightNumber {
+				if leftNumber < rightNumber {
+					return -1
+				}
+				return 1
+			}
+
+			leftDigitLength := leftIndex - leftStart
+			rightDigitLength := rightIndex - rightStart
+			if leftDigitLength != rightDigitLength {
+				return leftDigitLength - rightDigitLength
+			}
+			continue
+		}
+
+		if leftChar != rightChar {
+			if leftChar < rightChar {
+				return -1
+			}
+			return 1
+		}
+		leftIndex++
+		rightIndex++
+	}
+
+	return len(left) - len(right)
+}
+
+func isASCIIDigit(value byte) bool {
+	return value >= '0' && value <= '9'
 }
 
 // CreateDefaultShareForSubscription 为订阅创建默认分享链接
@@ -232,10 +294,45 @@ func GetSharesBySubscriptionID(subID int, keyword ...string) []SubscriptionShare
 	return shares
 }
 
-// GetSharesBySubscriptionIDPaginated 获取订阅的分享列表（分页，支持搜索）
-func GetSharesBySubscriptionIDPaginated(subID, page, pageSize int, keyword string) ([]SubscriptionShare, int, error) {
+// GetShareIDsByIP 根据IP地址获取访问过的分享ID列表
+func GetShareIDsByIP(ip string) []int {
+	logs := subLogsCache.GetAll()
+	shareIDMap := make(map[int]bool)
+
+	for _, log := range logs {
+		if log.IP == ip && log.ShareID > 0 {
+			shareIDMap[log.ShareID] = true
+		}
+	}
+
+	shareIDs := make([]int, 0, len(shareIDMap))
+	for id := range shareIDMap {
+		shareIDs = append(shareIDs, id)
+	}
+	return shareIDs
+}
+
+// GetSharesBySubscriptionIDPaginated 获取订阅的分享列表（分页，支持搜索、IP筛选、排序）
+func GetSharesBySubscriptionIDPaginated(subID, page, pageSize int, keyword, ipFilter, sortBy, sortOrder string) ([]SubscriptionShare, int, error) {
 	// 先从缓存获取该订阅的所有分享
 	allShares := subscriptionShareCache.GetByIndex("subscriptionID", strconv.Itoa(subID))
+
+	// IP过滤优先级最高
+	if ipFilter != "" {
+		shareIDs := GetShareIDsByIP(ipFilter)
+		shareIDSet := make(map[int]bool)
+		for _, id := range shareIDs {
+			shareIDSet[id] = true
+		}
+
+		filtered := make([]SubscriptionShare, 0)
+		for _, share := range allShares {
+			if shareIDSet[share.ID] {
+				filtered = append(filtered, share)
+			}
+		}
+		allShares = filtered
+	}
 
 	// 如果提供了搜索关键词，进行过滤
 	// 规则：名称使用模糊搜索，token使用精确匹配
@@ -253,6 +350,30 @@ func GetSharesBySubscriptionIDPaginated(subID, page, pageSize int, keyword strin
 			}
 		}
 		allShares = filtered
+	}
+
+	// 排序
+	if sortBy == "access_count" || sortBy == "name" {
+		sort.SliceStable(allShares, func(i, j int) bool {
+			if sortBy == "name" {
+				comparison := compareNaturalStrings(allShares[i].Name, allShares[j].Name)
+				if comparison == 0 {
+					comparison = allShares[i].ID - allShares[j].ID
+				}
+				if sortOrder == "desc" {
+					return comparison > 0
+				}
+				return comparison < 0
+			}
+
+			if allShares[i].AccessCount == allShares[j].AccessCount {
+				return allShares[i].ID < allShares[j].ID
+			}
+			if sortOrder == "asc" {
+				return allShares[i].AccessCount < allShares[j].AccessCount
+			}
+			return allShares[i].AccessCount > allShares[j].AccessCount
+		})
 	}
 
 	total := len(allShares)
