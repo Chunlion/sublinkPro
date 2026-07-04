@@ -780,6 +780,76 @@ func TestScheduleClashToNodeLinksPreservesCustomRemarkForSameHashRenamedNode(t *
 	}
 }
 
+func TestScheduleClashToNodeLinksPreservesRemarkWhenExistingContentHashMissing(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "missing-hash-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	proxy := protocol.Proxy{
+		Name:     "hk-01",
+		Type:     "ss",
+		Server:   "hk.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	existingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, proxy, "", 1)
+	if err := database.DB.Model(&models.Node{}).Where("id = ?", existingNode.ID).Update("content_hash", "").Error; err != nil {
+		t.Fatalf("clear content hash: %v", err)
+	}
+	existingNode.ContentHash = ""
+	models.UpdateNodeCache(existingNode.ID, existingNode)
+
+	if err := models.UpdateNodeFields(existingNode.ID, map[string]any{
+		"name":      "custom-hk-remark",
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("customize node remark: %v", err)
+	}
+
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{proxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != existingNode.ID {
+		t.Fatalf("node ID = %d, want existing ID %d", nodes[0].ID, existingNode.ID)
+	}
+	if nodes[0].Name != "custom-hk-remark" || nodes[0].NameMode != models.NodeNameModeRemark {
+		t.Fatalf("node remark not preserved: Name=%q NameMode=%q", nodes[0].Name, nodes[0].NameMode)
+	}
+	wantHash := protocol.GenerateProxyContentHash(proxy)
+	if nodes[0].ContentHash != wantHash {
+		t.Fatalf("cached content hash = %q, want %q", nodes[0].ContentHash, wantHash)
+	}
+	var stored models.Node
+	if err := database.DB.First(&stored, existingNode.ID).Error; err != nil {
+		t.Fatalf("reload node: %v", err)
+	}
+	if stored.ContentHash != wantHash {
+		t.Fatalf("stored content hash = %q, want %q", stored.ContentHash, wantHash)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != existingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, existingNode.ID)
+	}
+}
+
 func TestGenerateProxyLinkRoundTripsMieruClashYAML(t *testing.T) {
 	var config ClashConfig
 	if err := yaml.Unmarshal([]byte(`proxies:

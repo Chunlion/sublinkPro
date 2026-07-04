@@ -842,11 +842,15 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 
 	// 创建现有节点的映射表（以 ContentHash 为键，用于同机场去重判断与更新）
 	existingNodeByContentHash := make(map[string]models.Node)
+	existingNodeByLink := make(map[string]models.Node)
 	// 对信息节点 hash，按原始名称记录本机场已有节点（用户备注不会影响重新拉取匹配）
 	existingInfoNodeNames := make(map[string]map[string]models.Node)
 	existingInfoNodeSorts := make(map[string]map[int]models.Node)
 	matchedExistingNodeIDs := make(map[int]bool)
 	for _, node := range existingNodes {
+		if strings.TrimSpace(node.Link) != "" {
+			existingNodeByLink[node.Link] = node
+		}
 		if node.ContentHash != "" {
 			existingNodeByContentHash[node.ContentHash] = node
 			// 如果该 hash 是信息节点，按名称建立索引
@@ -914,6 +918,12 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 		return true
 	}
 
+	buildNodeInfoUpdate := func(existingNode models.Node, linkName string, link string, sourceSort int, contentHash string) models.NodeInfoUpdate {
+		update := models.BuildNodeInfoUpdate(existingNode, linkName, link, sourceSort)
+		update.ContentHash = contentHash
+		return update
+	}
+
 	// 2. 遍历新获取的节点，插入或更新
 	for proxyIndex, proxy := range proxys {
 		// 定期检查任务是否已取消或超时（每处理一个节点检查一次）
@@ -975,7 +985,23 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 
 		// 判断节点是否已存在（全库去重：使用 ContentHash 判断）
 		var nodeStatus string
-		if allNodeHashes[contentHash] {
+		if existingNode, ok := existingNodeByLink[link]; ok {
+			skipCount++
+			nodeStatus = "skipped"
+			matchedExistingNodeIDs[existingNode.ID] = true
+			backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
+
+			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.SourceSort != Node.SourceSort {
+				nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash))
+				updateCount++
+				nodeStatus = "updated"
+				utils.Info("✏️ 节点【%s】原始信息已变更，将复用现有节点并更新", proxy.Name)
+			} else if backfilledCountry {
+				nodeStatus = "updated"
+			} else {
+				utils.Debug("⏭️ 节点【%s】按原始链接匹配到现有节点，跳过", proxy.Name)
+			}
+		} else if allNodeHashes[contentHash] {
 			skipCount++
 			nodeStatus = "skipped"
 			// 节点内容已存在 - 优先判断是否为本机场已存在节点
@@ -998,8 +1024,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 						matchedExistingNodeIDs[matchedInfoNode.ID] = true
 						backfilledCountry := backfillExistingNodeCountry(matchedInfoNode, proxy.Name)
 						// 该名称的信息节点已存在，检查链接或顺序是否变化
-						if matchedInfoNode.LinkName != proxy.Name || matchedInfoNode.Link != link || matchedInfoNode.SourceSort != Node.SourceSort {
-							nodesToUpdate = append(nodesToUpdate, models.BuildNodeInfoUpdate(matchedInfoNode, proxy.Name, link, Node.SourceSort))
+						if matchedInfoNode.ContentHash != contentHash || matchedInfoNode.LinkName != proxy.Name || matchedInfoNode.Link != link || matchedInfoNode.SourceSort != Node.SourceSort {
+							nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(matchedInfoNode, proxy.Name, link, Node.SourceSort, contentHash))
 							updateCount++
 							nodeStatus = "updated"
 							utils.Info("✏️ 信息节点【%s】链接/顺序已变更，将更新", proxy.Name)
@@ -1022,8 +1048,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 					matchedExistingNodeIDs[existingNode.ID] = true
 					backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
 
-					if existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
-						nodesToUpdate = append(nodesToUpdate, models.BuildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort))
+					if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
+						nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash))
 						updateCount++
 						nodeStatus = "updated"
 						utils.Info("✏️ 节点【%s】原始名称/链接/顺序已变更，将更新 [旧原始名称: %s]", proxy.Name, existingNode.LinkName)
@@ -1097,6 +1123,9 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	// 3. 收集需要删除的节点ID（本次订阅没有获取到但数据库中存在的节点）
 	nodeIDsToDelete := make([]int, 0)
 	for nodeID, node := range existingNodeByID {
+		if matchedExistingNodeIDs[nodeID] {
+			continue
+		}
 		// 使用 ContentHash 判断节点是否在本次拉取中
 		if !currentHashes[node.ContentHash] {
 			nodeIDsToDelete = append(nodeIDsToDelete, nodeID)

@@ -1844,6 +1844,7 @@ type NodeInfoUpdate struct {
 	Name            string
 	LinkName        string
 	Link            string
+	ContentHash     string
 	SourceSort      int
 	Source          string
 	CurrentName     string
@@ -1858,6 +1859,7 @@ func BuildNodeInfoUpdate(existing Node, linkName string, link string, sourceSort
 		Name:            linkName,
 		LinkName:        linkName,
 		Link:            link,
+		ContentHash:     existing.ContentHash,
 		SourceSort:      sourceSort,
 		Source:          existing.Source,
 		CurrentName:     existing.Name,
@@ -1892,14 +1894,15 @@ func BatchUpdateNodeInfo(updates []NodeInfoUpdate) (int, error) {
 }
 
 type nodeInfoUpdatePlan struct {
-	ID         int
-	Name       string
-	SyncName   bool
-	LinkName   string
-	Link       string
-	LinkHash   string
-	SourceSort int
-	UpdatedAt  time.Time
+	ID          int
+	Name        string
+	SyncName    bool
+	LinkName    string
+	Link        string
+	LinkHash    string
+	ContentHash string
+	SourceSort  int
+	UpdatedAt   time.Time
 }
 
 type nodeInfoNameState struct {
@@ -1997,6 +2000,9 @@ func prepareNodeInfoUpdatePlan(update NodeInfoUpdate, nameState *nodeInfoNameSta
 		if existing.NameMode == "" {
 			existing.NameMode = cachedNode.NameMode
 		}
+		if update.ContentHash == "" {
+			update.ContentHash = cachedNode.ContentHash
+		}
 	}
 
 	syncName := existing.ShouldSyncNameFromLink()
@@ -2012,14 +2018,15 @@ func prepareNodeInfoUpdatePlan(update NodeInfoUpdate, nameState *nodeInfoNameSta
 	}
 
 	return nodeInfoUpdatePlan{
-		ID:         update.ID,
-		Name:       newName,
-		SyncName:   syncName,
-		LinkName:   update.LinkName,
-		Link:       update.Link,
-		LinkHash:   hashNodeLink(update.Link),
-		SourceSort: update.SourceSort,
-		UpdatedAt:  updatedAt,
+		ID:          update.ID,
+		Name:        newName,
+		SyncName:    syncName,
+		LinkName:    update.LinkName,
+		Link:        update.Link,
+		LinkHash:    hashNodeLink(update.Link),
+		ContentHash: update.ContentHash,
+		SourceSort:  update.SourceSort,
+		UpdatedAt:   updatedAt,
 	}
 }
 
@@ -2062,6 +2069,21 @@ func tryBatchUpdateNodeInfoWithCaseWhen(plans []nodeInfoUpdatePlan) (int, error)
 	appendCaseColumn("link_name", func(plan nodeInfoUpdatePlan) any { return plan.LinkName })
 	appendCaseColumn("link", func(plan nodeInfoUpdatePlan) any { return plan.Link })
 	appendCaseColumn("link_hash", func(plan nodeInfoUpdatePlan) any { return plan.LinkHash })
+	if hasNodeInfoContentHash(plans) {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString("content_hash = CASE id ")
+		for _, plan := range plans {
+			if plan.ContentHash == "" {
+				continue
+			}
+			fmt.Fprintf(&sb, "WHEN %d THEN ? ", plan.ID)
+			args = append(args, plan.ContentHash)
+		}
+		sb.WriteString("ELSE content_hash END")
+	}
 	appendCaseColumn("source_sort", func(plan nodeInfoUpdatePlan) any { return plan.SourceSort })
 	if hasSyncedNodeInfoName(plans) {
 		if !first {
@@ -2109,6 +2131,15 @@ func hasSyncedNodeInfoName(plans []nodeInfoUpdatePlan) bool {
 	return false
 }
 
+func hasNodeInfoContentHash(plans []nodeInfoUpdatePlan) bool {
+	for _, plan := range plans {
+		if plan.ContentHash != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func hasDuplicateNodeInfoUpdateID(plans []nodeInfoUpdatePlan) bool {
 	seen := make(map[int]bool, len(plans))
 	for _, plan := range plans {
@@ -2134,6 +2165,9 @@ func updateNodeInfoCache(plan nodeInfoUpdatePlan) {
 		cachedNode.LinkName = plan.LinkName
 		cachedNode.Link = plan.Link
 		cachedNode.LinkHash = plan.LinkHash
+		if plan.ContentHash != "" {
+			cachedNode.ContentHash = plan.ContentHash
+		}
 		cachedNode.SourceSort = plan.SourceSort
 		cachedNode.UpdatedAt = plan.UpdatedAt
 		cachedNode.NameMode = NormalizeNodeNameMode(cachedNode.NameMode)
@@ -2152,6 +2186,9 @@ func fallbackToIndividualNodeInfoUpdate(updates []NodeInfoUpdate) int {
 			"link_hash":   plan.LinkHash,
 			"source_sort": plan.SourceSort,
 			"updated_at":  plan.UpdatedAt,
+		}
+		if plan.ContentHash != "" {
+			fields["content_hash"] = plan.ContentHash
 		}
 		if plan.SyncName {
 			fields["name"] = plan.Name
