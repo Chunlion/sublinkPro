@@ -642,6 +642,144 @@ func TestApplyAirportIntraNodeUniquifyCanNumberWithoutPrefix(t *testing.T) {
 	}
 }
 
+func TestScheduleClashToNodeLinksPreservesCustomRemarkOnAirportSync(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "remark-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	originalProxy := protocol.Proxy{
+		Name:     "jp-01",
+		Type:     "ss",
+		Server:   "jp.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	existingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, originalProxy, "", 1)
+	if err := models.UpdateNodeFields(existingNode.ID, map[string]any{
+		"name":      "my-jp-remark",
+		"name_mode": models.NodeNameModeLink,
+	}); err != nil {
+		t.Fatalf("customize node remark: %v", err)
+	}
+
+	updatedProxy := originalProxy
+	updatedProxy.Name = "jp-02"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{updatedProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != existingNode.ID {
+		t.Fatalf("node ID = %d, want existing ID %d", nodes[0].ID, existingNode.ID)
+	}
+	if nodes[0].Name != "my-jp-remark" {
+		t.Fatalf("node remark = %q, want custom remark", nodes[0].Name)
+	}
+	if nodes[0].LinkName != "jp-02" {
+		t.Fatalf("node link name = %q, want updated upstream name", nodes[0].LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != existingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, existingNode.ID)
+	}
+}
+
+func TestScheduleClashToNodeLinksPreservesCustomRemarkForSameHashRenamedNode(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "same-hash-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	baseProxy := protocol.Proxy{
+		Name:     "slot-a",
+		Type:     "ss",
+		Server:   "same.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	firstExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, baseProxy, "", 1)
+	secondProxy := baseProxy
+	secondProxy.Name = "slot-b"
+	secondExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, secondProxy, "", 2)
+	if firstExistingNode.ContentHash != secondExistingNode.ContentHash {
+		t.Fatalf("test setup content hashes differ: %q != %q", firstExistingNode.ContentHash, secondExistingNode.ContentHash)
+	}
+	if err := models.UpdateNodeFields(firstExistingNode.ID, map[string]any{
+		"name":      "custom-slot-a",
+		"name_mode": models.NodeNameModeLink,
+	}); err != nil {
+		t.Fatalf("customize node remark: %v", err)
+	}
+
+	renamedFirstProxy := baseProxy
+	renamedFirstProxy.Name = "slot-a-renamed"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{renamedFirstProxy, secondProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("source node count = %d, want 2", len(nodes))
+	}
+
+	var storedFirst, storedSecond *models.Node
+	for i := range nodes {
+		switch nodes[i].ID {
+		case firstExistingNode.ID:
+			storedFirst = &nodes[i]
+		case secondExistingNode.ID:
+			storedSecond = &nodes[i]
+		}
+	}
+	if storedFirst == nil {
+		t.Fatalf("custom remark node ID %d was not preserved; nodes=%+v", firstExistingNode.ID, nodes)
+	}
+	if storedSecond == nil {
+		t.Fatalf("unchanged same-hash node ID %d was not preserved; nodes=%+v", secondExistingNode.ID, nodes)
+	}
+	if storedFirst.Name != "custom-slot-a" {
+		t.Fatalf("node remark = %q, want custom remark", storedFirst.Name)
+	}
+	if storedFirst.LinkName != "slot-a-renamed" {
+		t.Fatalf("node link name = %q, want updated upstream name", storedFirst.LinkName)
+	}
+	if storedSecond.LinkName != "slot-b" {
+		t.Fatalf("second node link name = %q, want slot-b", storedSecond.LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != firstExistingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, firstExistingNode.ID)
+	}
+}
+
 func TestGenerateProxyLinkRoundTripsMieruClashYAML(t *testing.T) {
 	var config ClashConfig
 	if err := yaml.Unmarshal([]byte(`proxies:
@@ -740,7 +878,7 @@ func setupSubscriptionCountryBackfillTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Airport{}, &models.Node{}, &models.CountryRule{}, &models.SystemSetting{}); err != nil {
+	if err := db.AutoMigrate(&models.Airport{}, &models.Node{}, &models.SubcriptionNode{}, &models.CountryRule{}, &models.SystemSetting{}); err != nil {
 		t.Fatalf("auto migrate test db: %v", err)
 	}
 

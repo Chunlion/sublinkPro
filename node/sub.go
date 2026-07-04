@@ -844,6 +844,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	existingNodeByContentHash := make(map[string]models.Node)
 	// 对信息节点 hash，按原始名称记录本机场已有节点（用户备注不会影响重新拉取匹配）
 	existingInfoNodeNames := make(map[string]map[string]models.Node)
+	existingInfoNodeSorts := make(map[string]map[int]models.Node)
+	matchedExistingNodeIDs := make(map[int]bool)
 	for _, node := range existingNodes {
 		if node.ContentHash != "" {
 			existingNodeByContentHash[node.ContentHash] = node
@@ -857,6 +859,14 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 					name = strings.TrimSpace(node.Name)
 				}
 				existingInfoNodeNames[node.ContentHash][name] = node
+				if node.SourceSort > 0 {
+					if existingInfoNodeSorts[node.ContentHash] == nil {
+						existingInfoNodeSorts[node.ContentHash] = make(map[int]models.Node)
+					}
+					if _, exists := existingInfoNodeSorts[node.ContentHash][node.SourceSort]; !exists {
+						existingInfoNodeSorts[node.ContentHash][node.SourceSort] = node
+					}
+				}
 			}
 		}
 	}
@@ -973,11 +983,23 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 				// 属于本机场
 				if infoNodeHashes[contentHash] {
 					// 信息节点：用名称精确匹配（同 hash 对应多个已有节点）
-					if existingByName, nameExists := existingInfoNodeNames[contentHash][proxy.Name]; nameExists {
-						backfilledCountry := backfillExistingNodeCountry(existingByName, proxy.Name)
+					existingByName, nameExists := existingInfoNodeNames[contentHash][proxy.Name]
+					existingBySort, sortExists := existingInfoNodeSorts[contentHash][Node.SourceSort]
+					matchedInfoNode := models.Node{}
+					infoNodeMatched := false
+					if nameExists {
+						matchedInfoNode = existingByName
+						infoNodeMatched = true
+					} else if sortExists && !matchedExistingNodeIDs[existingBySort.ID] {
+						matchedInfoNode = existingBySort
+						infoNodeMatched = true
+					}
+					if infoNodeMatched {
+						matchedExistingNodeIDs[matchedInfoNode.ID] = true
+						backfilledCountry := backfillExistingNodeCountry(matchedInfoNode, proxy.Name)
 						// 该名称的信息节点已存在，检查链接或顺序是否变化
-						if existingByName.LinkName != proxy.Name || existingByName.Link != link || existingByName.SourceSort != Node.SourceSort {
-							nodesToUpdate = append(nodesToUpdate, models.BuildNodeInfoUpdate(existingByName, proxy.Name, link, Node.SourceSort))
+						if matchedInfoNode.LinkName != proxy.Name || matchedInfoNode.Link != link || matchedInfoNode.SourceSort != Node.SourceSort {
+							nodesToUpdate = append(nodesToUpdate, models.BuildNodeInfoUpdate(matchedInfoNode, proxy.Name, link, Node.SourceSort))
 							updateCount++
 							nodeStatus = "updated"
 							utils.Info("✏️ 信息节点【%s】链接/顺序已变更，将更新", proxy.Name)
@@ -997,6 +1019,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 				} else {
 					// 普通节点：用 hash 匹配，检查名称或链接是否变化
 					existingNode := existingNodeByContentHash[contentHash]
+					matchedExistingNodeIDs[existingNode.ID] = true
 					backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
 
 					if existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
@@ -1082,6 +1105,9 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 
 		// 信息节点：hash 仍在，但需要按名称精细判断，避免名称变化/部分移除导致垃圾节点残留（数据膨胀）
 		if infoNodeHashes[node.ContentHash] {
+			if matchedExistingNodeIDs[nodeID] {
+				continue
+			}
 			currentNames := currentNamesByHash[node.ContentHash]
 			name := strings.TrimSpace(node.LinkName)
 			if name == "" {
