@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 // material-ui
@@ -26,10 +26,27 @@ export default function SearchableNodeSelect({
   freeSolo = false,
   limit = 50,
   disabled = false,
+  onSearch,
+  searchDebounceMs = 250,
   ...props
 }) {
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
+  const onSearchRef = useRef(onSearch);
+
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  useEffect(() => {
+    if (!onSearchRef.current) return undefined;
+
+    const timer = setTimeout(() => {
+      onSearchRef.current?.(inputValue.trim());
+    }, searchDebounceMs);
+
+    return () => clearTimeout(timer);
+  }, [inputValue, searchDebounceMs]);
 
   // 获取初始显示的节点（前N个）
   const limitedNodes = useMemo(() => {
@@ -208,5 +225,7 @@ SearchableNodeSelect.propTypes = {
   helperText: PropTypes.string,
   freeSolo: PropTypes.bool,
   limit: PropTypes.number,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  onSearch: PropTypes.func,
+  searchDebounceMs: PropTypes.number
 };

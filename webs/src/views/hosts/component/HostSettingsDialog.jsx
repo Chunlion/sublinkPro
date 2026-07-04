@@ -25,7 +25,7 @@ import useResolvedColorScheme from 'hooks/useResolvedColorScheme';
 
 // project imports
 import { getHostSettings, updateHostSettings } from 'api/hosts';
-import { getNodes } from 'api/nodes';
+import { getNodeSelectorByIds, getNodes } from 'api/nodes';
 import SearchableNodeSelect from '../../../components/SearchableNodeSelect'; // Ensure this relative path is correct from the new location
 
 export default function HostSettingsDialog({ open, onClose }) {
@@ -92,13 +92,19 @@ export default function HostSettingsDialog({ open, onClose }) {
     }
   };
 
-  const fetchNodes = async () => {
-    if (proxyNodes.length > 0) return;
+  const fetchNodes = async (search = '', selectedID = settings.dns_proxy_node_id) => {
+    if (!search && proxyNodes.length > 0) return;
     setLoadingNodes(true);
     try {
-      const res = await getNodes({ page: 1, pageSize: 200 });
+      const res = await getNodes({ page: 1, pageSize: 200, search });
       if (res.code === 200) {
-        setProxyNodes(res.data?.items || res.data || []);
+        let items = res.data?.items || res.data || [];
+        const nodeID = Number(selectedID);
+        if (!search && nodeID > 0 && !items.some((node) => node.ID === nodeID)) {
+          const selectedRes = await getNodeSelectorByIds({ 'ids[]': [nodeID] });
+          items = [...(selectedRes.data || []), ...items];
+        }
+        setProxyNodes(items);
       }
     } catch (err) {
       console.error(err);
@@ -289,6 +295,7 @@ export default function HostSettingsDialog({ open, onClose }) {
                             label={t('hosts.settings.proxyNode')}
                             displayField="Name"
                             valueField="ID"
+                            onSearch={fetchNodes}
                           />
                         )}
 

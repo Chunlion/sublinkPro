@@ -143,10 +143,10 @@ export default function GeoIPSettingsDialog({ open, onClose, showMessage }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.useProxy]);
 
-  const fetchProxyNodes = async () => {
+  const fetchProxyNodes = async (search = '') => {
     setLoadingNodes(true);
     try {
-      const res = await getNodes({ page: 1, pageSize: 200 });
+      const res = await getNodes({ page: 1, pageSize: 200, search });
       if (res.data) {
         const items = res.data.items || res.data || [];
         setProxyNodes(items);
@@ -379,6 +379,7 @@ export default function GeoIPSettingsDialog({ open, onClose, showMessage }) {
                   helperText={t('components.geoIpSettings.helpers.proxyNode')}
                   freeSolo={true}
                   limit={50}
+                  onSearch={fetchProxyNodes}
                 />
               </Box>
             </Collapse>

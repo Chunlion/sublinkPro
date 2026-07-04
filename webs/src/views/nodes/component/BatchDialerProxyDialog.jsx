@@ -26,6 +26,7 @@ export default function BatchDialerProxyDialog({
   setValue,
   proxyNodeOptions,
   loadingProxyNodes,
+  onFetchProxyNodes,
   onClose,
   onSubmit
 }) {
@@ -61,6 +62,7 @@ export default function BatchDialerProxyDialog({
           helperText={t('nodes.batch.dialerProxyDialog.helper')}
           freeSolo={true}
           limit={50}
+          onSearch={onFetchProxyNodes}
           sx={fieldControlSx}
         />
         <Alert severity="warning" sx={{ mt: 1, borderColor: tokens.softBorder, bgcolor: tokens.nestedPanelSurface }}>
@@ -84,6 +86,7 @@ BatchDialerProxyDialog.propTypes = {
   setValue: PropTypes.func.isRequired,
   proxyNodeOptions: PropTypes.array.isRequired,
   loadingProxyNodes: PropTypes.bool.isRequired,
+  onFetchProxyNodes: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired
 };

@@ -453,6 +453,7 @@ export default function AirportFormDialog({
                     helperText={t('airports.form.proxyDownload.helper')}
                     freeSolo={true}
                     limit={50}
+                    onSearch={onFetchProxyNodes}
                     size="small"
                   />
                 </Collapse>

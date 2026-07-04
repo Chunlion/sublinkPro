@@ -372,11 +372,11 @@ export default function NodeList() {
   );
 
   // 获取代理节点选项（用于订阅下载代理选择）
-  const fetchProxyNodes = useCallback(async () => {
-    if (proxyNodeOptions.length > 0) return; // 已加载过则不重复加载
+  const fetchProxyNodes = useCallback(async (search = '') => {
+    if (!search && proxyNodeOptions.length > 0) return; // 已加载过则不重复加载
     setLoadingProxyNodes(true);
     try {
-      const response = await getNodes({ page: 1, pageSize: 200 });
+      const response = await getNodes({ page: 1, pageSize: 200, search });
       setProxyNodeOptions(response.data?.items || response.data || []);
     } catch (error) {
       console.error('获取代理节点列表失败:', error);
@@ -1465,6 +1465,7 @@ export default function NodeList() {
         setValue={setBatchDialerProxyValue}
         proxyNodeOptions={proxyNodeOptions}
         loadingProxyNodes={loadingProxyNodes}
+        onFetchProxyNodes={fetchProxyNodes}
         onClose={() => setBatchDialerProxyDialogOpen(false)}
         onSubmit={handleSubmitBatchDialerProxy}
       />

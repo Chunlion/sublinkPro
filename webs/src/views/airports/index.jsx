@@ -317,10 +317,10 @@ export default function AirportList() {
   }, []);
 
   // 获取代理节点
-  const fetchProxyNodes = useCallback(async () => {
+  const fetchProxyNodes = useCallback(async (search = '') => {
     setLoadingProxyNodes(true);
     try {
-      const response = await getNodes({ page: 1, pageSize: 200 });
+      const response = await getNodes({ page: 1, pageSize: 200, search });
       setProxyNodeOptions(response.data?.items || response.data || []);
     } catch (error) {
       console.error('获取代理节点失败:', error);

@@ -102,10 +102,10 @@ export default function TelegramSettings({ showMessage, loading, setLoading }) {
     }
   };
 
-  const fetchProxyNodes = async () => {
+  const fetchProxyNodes = async (search = '') => {
     setLoadingNodes(true);
     try {
-      const res = await getNodes({ page: 1, pageSize: 200 });
+      const res = await getNodes({ page: 1, pageSize: 200, search });
       if (res.data) {
         const items = res.data.items || res.data || [];
         setProxyNodes(items);
@@ -371,6 +371,7 @@ export default function TelegramSettings({ showMessage, loading, setLoading }) {
                 helperText={t('settings.telegramPanel.proxyHelper')}
                 freeSolo={true}
                 limit={50}
+                onSearch={fetchProxyNodes}
               />
             </Box>
           </Collapse>

@@ -916,10 +916,10 @@ export default function TemplateList() {
     }
   };
 
-  const fetchProxyNodes = async () => {
+  const fetchProxyNodes = async (search = '') => {
     setLoadingProxyNodes(true);
     try {
-      const res = await getNodes({ page: 1, pageSize: 100 });
+      const res = await getNodes({ page: 1, pageSize: 100, search });
       if (res.data) {
         const items = res.data.items || res.data || [];
         setProxyNodeOptions(items);
@@ -1924,6 +1924,7 @@ export default function TemplateList() {
                       helperText={t('templates.helpers.proxyNode')}
                       freeSolo={true}
                       limit={50}
+                      onSearch={fetchProxyNodes}
                     />
                   </Box>
                 )}

@@ -115,6 +115,7 @@ export default function NodeDialog({
             freeSolo={true}
             limit={50}
             onFocus={onFetchProxyNodes}
+            onSearch={onFetchProxyNodes}
             sx={fieldControlSx}
           />
           <Autocomplete
