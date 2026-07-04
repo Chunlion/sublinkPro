@@ -6,7 +6,7 @@ import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 
 // icons - 动态导入通用图标
-import * as TablerIcons from '@tabler/icons-react';
+import { AIRPORT_LOGO_ICONS } from './airportLogoIcons';
 
 /**
  * 机场Logo显示组件
@@ -112,7 +112,7 @@ export default function AirportLogo({ logo, name, size = 'medium' }) {
 
   // 渲染图标
   if (type === 'icon') {
-    const IconComponent = TablerIcons[value];
+    const IconComponent = AIRPORT_LOGO_ICONS[value];
     if (IconComponent) {
       return (
         <Avatar

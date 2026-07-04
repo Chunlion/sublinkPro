@@ -376,8 +376,8 @@ export default function NodeList() {
     if (proxyNodeOptions.length > 0) return; // 已加载过则不重复加载
     setLoadingProxyNodes(true);
     try {
-      const response = await getNodes({});
-      setProxyNodeOptions(response.data || []);
+      const response = await getNodes({ page: 1, pageSize: 200 });
+      setProxyNodeOptions(response.data?.items || response.data || []);
     } catch (error) {
       console.error('获取代理节点列表失败:', error);
     } finally {

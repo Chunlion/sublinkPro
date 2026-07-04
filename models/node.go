@@ -270,8 +270,16 @@ func (node Node) UseRemarkName() bool {
 	return NormalizeNodeNameMode(node.NameMode) == NodeNameModeRemark && strings.TrimSpace(node.Name) != ""
 }
 
+func (node Node) HasLockedRemarkName() bool {
+	return node.UseRemarkName()
+}
+
 // ShouldSyncNameFromLink 判断上游原始名称变化时是否应同步覆盖备注名称。
 func (node Node) ShouldSyncNameFromLink() bool {
+	if node.HasLockedRemarkName() {
+		return false
+	}
+
 	trimmedName := strings.TrimSpace(node.Name)
 	trimmedLinkName := strings.TrimSpace(node.LinkName)
 

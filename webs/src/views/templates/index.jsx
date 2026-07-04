@@ -919,7 +919,7 @@ export default function TemplateList() {
   const fetchProxyNodes = async () => {
     setLoadingProxyNodes(true);
     try {
-      const res = await getNodes({ pageSize: 100 });
+      const res = await getNodes({ page: 1, pageSize: 100 });
       if (res.data) {
         const items = res.data.items || res.data || [];
         setProxyNodeOptions(items);

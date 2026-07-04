@@ -19,12 +19,12 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 // icons
-import * as TablerIcons from '@tabler/icons-react';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
 
 // local components
 import AirportLogo from 'views/airports/component/AirportLogo';
+import { AIRPORT_LOGO_ICONS } from 'views/airports/component/airportLogoIcons';
 
 // 精选的 Tabler 图标列表
 const ICON_LIST = [
@@ -523,7 +523,7 @@ export default function LogoPicker({ value, onChange, name }) {
                 }}
               >
                 {filteredIcons.map((iconName) => {
-                  const IconComponent = TablerIcons[iconName];
+                  const IconComponent = AIRPORT_LOGO_ICONS[iconName];
                   if (!IconComponent) return null;
                   const isSelected = value === `icon:${iconName}`;
                   return (

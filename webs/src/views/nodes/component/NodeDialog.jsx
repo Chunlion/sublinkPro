@@ -73,7 +73,10 @@ export default function NodeDialog({
                   fullWidth
                   label={t('nodes.dialog.fields.remarkName')}
                   value={nodeForm.name}
-                  onChange={(e) => setNodeForm({ ...nodeForm, name: e.target.value })}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setNodeForm({ ...nodeForm, name, nameMode: name.trim() ? 'remark' : nodeForm.nameMode });
+                  }}
                   helperText={t('nodes.dialog.fields.remarkNameHelper')}
                   sx={fieldControlSx}
                 />

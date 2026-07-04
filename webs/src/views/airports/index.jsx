@@ -320,8 +320,8 @@ export default function AirportList() {
   const fetchProxyNodes = useCallback(async () => {
     setLoadingProxyNodes(true);
     try {
-      const response = await getNodes({});
-      setProxyNodeOptions(response.data || []);
+      const response = await getNodes({ page: 1, pageSize: 200 });
+      setProxyNodeOptions(response.data?.items || response.data || []);
     } catch (error) {
       console.error('获取代理节点失败:', error);
     } finally {

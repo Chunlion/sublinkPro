@@ -73,6 +73,40 @@ func getContentType(filePath string) string {
 	return "application/octet-stream"
 }
 
+func staticCacheControlForPath(path string) string {
+	cleanPath := strings.TrimPrefix(path, "/")
+	if cleanPath == "" || strings.HasSuffix(cleanPath, ".html") {
+		return "no-cache"
+	}
+	switch cleanPath {
+	case "sw.js", "registerSW.js", "manifest.webmanifest":
+		return "no-cache"
+	}
+	if strings.HasPrefix(cleanPath, "assets/") {
+		return "public, max-age=31536000, immutable"
+	}
+	if strings.HasPrefix(cleanPath, "workbox-") && strings.HasSuffix(cleanPath, ".js") {
+		return "public, max-age=31536000, immutable"
+	}
+	if strings.HasPrefix(cleanPath, "images/") || cleanPath == "icon-192.png" || cleanPath == "icon-512.png" {
+		return "public, max-age=86400"
+	}
+	return ""
+}
+
+func setStaticCacheHeaders(c *gin.Context, path string) {
+	if cacheControl := staticCacheControlForPath(path); cacheControl != "" {
+		c.Header("Cache-Control", cacheControl)
+	}
+}
+
+func staticCacheHeaderMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setStaticCacheHeaders(c, c.Request.URL.Path)
+		c.Next()
+	}
+}
+
 // injectConfigToHTML 在 HTML 的 <head> 中注入前端配置脚本
 // 配置通过 window.__SUBLINK_CONFIG__ 暴露给前端
 func injectConfigToHTML(html string, basePath string) string {
@@ -421,6 +455,7 @@ func Run() {
 	} else {
 		utils.Info("Gin trusted proxies: %s", strings.Join(trustedProxies, ", "))
 	}
+	r.Use(staticCacheHeaderMiddleware())
 	// 初始化模板
 	Templateinit()
 
@@ -602,6 +637,7 @@ func Run() {
 				}
 				// 注入配置脚本到 HTML
 				html := injectConfigToHTML(string(data), webBasePath)
+				setStaticCacheHeaders(c, "index.html")
 				c.Data(200, "text/html; charset=utf-8", []byte(html))
 			}
 
@@ -715,12 +751,15 @@ func Run() {
 				// 如果是 HTML 文件，注入配置
 				if strings.HasSuffix(filePath, ".html") {
 					html := injectConfigToHTML(string(data), webBasePath)
+					setStaticCacheHeaders(c, filePath)
 					c.Data(200, contentType, []byte(html))
 				} else if filePath == "manifest.webmanifest" {
 					// PWA manifest 特殊处理：修改 start_url
 					manifest := injectBasePathToManifest(string(data), webBasePath)
+					setStaticCacheHeaders(c, filePath)
 					c.Data(200, contentType, []byte(manifest))
 				} else {
+					setStaticCacheHeaders(c, filePath)
 					c.Data(200, contentType, data)
 				}
 				return
@@ -734,6 +773,7 @@ func Run() {
 			}
 			// 注入配置到 SPA fallback
 			html := injectConfigToHTML(string(data), webBasePath)
+			setStaticCacheHeaders(c, "index.html")
 			c.Data(200, "text/html; charset=utf-8", []byte(html))
 		} else {
 			// 开发环境 fallback

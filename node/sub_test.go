@@ -700,6 +700,63 @@ func TestScheduleClashToNodeLinksPreservesCustomRemarkOnAirportSync(t *testing.T
 	}
 }
 
+func TestScheduleClashToNodeLinksKeepsRemarkModeNameWhenItMatchesOldUpstreamName(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "locked-remark-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	originalProxy := protocol.Proxy{
+		Name:     "hk-locked",
+		Type:     "ss",
+		Server:   "hk-locked.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	existingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, originalProxy, "", 1)
+	if err := models.UpdateNodeFields(existingNode.ID, map[string]any{
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("lock node remark mode: %v", err)
+	}
+
+	updatedProxy := originalProxy
+	updatedProxy.Name = "hk-upstream-renamed"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{updatedProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != existingNode.ID {
+		t.Fatalf("node ID = %d, want existing ID %d", nodes[0].ID, existingNode.ID)
+	}
+	if nodes[0].Name != "hk-locked" || nodes[0].NameMode != models.NodeNameModeRemark {
+		t.Fatalf("locked remark was overwritten: Name=%q NameMode=%q", nodes[0].Name, nodes[0].NameMode)
+	}
+	if nodes[0].LinkName != "hk-upstream-renamed" {
+		t.Fatalf("node link name = %q, want updated upstream name", nodes[0].LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != existingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, existingNode.ID)
+	}
+}
+
 func TestScheduleClashToNodeLinksPreservesCustomRemarkForSameHashRenamedNode(t *testing.T) {
 	setupSubscriptionCountryBackfillTestDB(t)
 

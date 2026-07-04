@@ -96,9 +96,9 @@ export default function HostSettingsDialog({ open, onClose }) {
     if (proxyNodes.length > 0) return;
     setLoadingNodes(true);
     try {
-      const res = await getNodes();
+      const res = await getNodes({ page: 1, pageSize: 200 });
       if (res.code === 200) {
-        setProxyNodes(res.data || []);
+        setProxyNodes(res.data?.items || res.data || []);
       }
     } catch (err) {
       console.error(err);

@@ -146,7 +146,7 @@ export default function GeoIPSettingsDialog({ open, onClose, showMessage }) {
   const fetchProxyNodes = async () => {
     setLoadingNodes(true);
     try {
-      const res = await getNodes({ pageSize: 200 });
+      const res = await getNodes({ page: 1, pageSize: 200 });
       if (res.data) {
         const items = res.data.items || res.data || [];
         setProxyNodes(items);

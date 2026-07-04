@@ -88,10 +88,21 @@ func TestBatchUpdateNodeInfoBulkUpdatesFieldsAndPreservesRemarkNames(t *testing.
 		CreatedAt:  originalTime,
 		UpdatedAt:  originalTime,
 	})
+	lockedRemarkNode := createNodeForBatchUpdateTest(t, Node{
+		Name:       "same-old",
+		LinkName:   "same-old",
+		NameMode:   NodeNameModeRemark,
+		Link:       "ss://old-c",
+		Source:     "机场A",
+		SourceSort: 3,
+		CreatedAt:  originalTime,
+		UpdatedAt:  originalTime,
+	})
 
 	updates := []NodeInfoUpdate{
 		BuildNodeInfoUpdate(linkModeNode, "新名称A 'quoted'", "ss://new-a?name='quoted'", 11),
 		BuildNodeInfoUpdate(remarkNode, "新名称B", "trojan://new-b?password='secret'", 12),
+		BuildNodeInfoUpdate(lockedRemarkNode, "same-new", "ss://new-c", 13),
 	}
 	count, err := BatchUpdateNodeInfo(updates)
 	if err != nil {
@@ -146,6 +157,17 @@ func TestBatchUpdateNodeInfoBulkUpdatesFieldsAndPreservesRemarkNames(t *testing.
 	}
 	if cached, ok := nodeCache.Get(remarkNode.ID); !ok || cached.Name != "我的备注" || cached.LinkName != "新名称B" || cached.LinkHash != storedRemark.LinkHash || cached.SourceSort != 12 || !cached.UpdatedAt.Equal(storedRemark.UpdatedAt) {
 		t.Fatalf("remark cache not updated after successful bulk update: %#v, ok=%v", cached, ok)
+	}
+
+	var storedLockedRemark Node
+	if err := database.DB.First(&storedLockedRemark, lockedRemarkNode.ID).Error; err != nil {
+		t.Fatalf("reload locked remark node: %v", err)
+	}
+	if storedLockedRemark.Name != "same-old" || storedLockedRemark.LinkName != "same-new" {
+		t.Fatalf("locked remark node not preserved: Name=%q LinkName=%q", storedLockedRemark.Name, storedLockedRemark.LinkName)
+	}
+	if cached, ok := nodeCache.Get(lockedRemarkNode.ID); !ok || cached.Name != "same-old" || cached.LinkName != "same-new" || cached.SourceSort != 13 {
+		t.Fatalf("locked remark cache not updated after successful bulk update: %#v, ok=%v", cached, ok)
 	}
 }
 

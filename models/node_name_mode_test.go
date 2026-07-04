@@ -53,10 +53,10 @@ func TestNodeNameSyncFromLinkName(t *testing.T) {
 			want:        "新名称",
 		},
 		{
-			name:        "legacy equal names keep syncing",
+			name:        "remark mode locks even when remark equals old upstream name",
 			node:        Node{Name: "旧名称", LinkName: "旧名称", NameMode: NodeNameModeRemark},
 			newLinkName: "新名称",
-			want:        "新名称",
+			want:        "旧名称",
 		},
 		{
 			name:        "custom remark is preserved in remark mode",

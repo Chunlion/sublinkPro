@@ -100,7 +100,7 @@ func createClientSubscriptionFixture(t *testing.T, clashTemplatePath, surgeTempl
 
 	sub := models.Subcription{
 		Name:                  subName,
-		Config:                `{"clash":"` + clashTemplatePath + `","surge":"` + surgeTemplatePath + `"}`,
+		Config:                testOutputConfigJSON(t, clashTemplatePath, surgeTemplatePath),
 		RefreshUsageOnRequest: false,
 	}
 	if err := sub.Add(); err != nil {
@@ -184,6 +184,23 @@ func writeTestClashTemplate(t *testing.T) string {
 	}
 
 	return file.Name()
+}
+
+func testOutputConfigJSON(t *testing.T, clashTemplatePath, surgeTemplatePath string) string {
+	t.Helper()
+
+	config := map[string]string{}
+	if clashTemplatePath != "" {
+		config["clash"] = clashTemplatePath
+	}
+	if surgeTemplatePath != "" {
+		config["surge"] = surgeTemplatePath
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("marshal output config: %v", err)
+	}
+	return string(raw)
 }
 
 func writeTestSurgeTemplate(t *testing.T) string {
@@ -337,7 +354,7 @@ func renderPreparedClientProxyNames(t *testing.T, clientType string, nodeNameRul
 	ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/c/?client="+clientType, nil)
 
 	templatePath := writeTestClashTemplate(t)
-	config := `{"clash":"` + templatePath + `"}`
+	config := testOutputConfigJSON(t, templatePath, "")
 	prepared := preparedClientResponse{
 		ClientType: clientType,
 		Mode:       clientResponseNormal,
@@ -352,7 +369,7 @@ func renderPreparedClientProxyNames(t *testing.T, clientType string, nodeNameRul
 	}
 	if clientType == "surge" {
 		templatePath = writeTestSurgeTemplate(t)
-		prepared.Subscription.Config = `{"surge":"` + templatePath + `"}`
+		prepared.Subscription.Config = testOutputConfigJSON(t, "", templatePath)
 		renderPreparedSurge(ginContext, prepared)
 		return surgeProxyNamesFromBody(recorder.Body.String())
 	}
@@ -809,7 +826,7 @@ func TestRenderPreparedClashSetsProfileUpdateIntervalHeader(t *testing.T) {
 				SubName:    "interval-sub",
 				Subscription: models.Subcription{
 					Name:                  "interval-sub",
-					Config:                `{"clash":"` + clashTemplatePath + `"}`,
+					Config:                testOutputConfigJSON(t, clashTemplatePath, ""),
 					RefreshUsageOnRequest: false,
 					UpdateInterval:        tt.updateInterval,
 				},
@@ -895,7 +912,7 @@ func TestRenderPreparedSurgeUsesSubscriptionUpdateIntervalSeconds(t *testing.T) 
 				SubName:    "interval-sub",
 				Subscription: models.Subcription{
 					Name:                  "interval-sub",
-					Config:                `{"surge":"` + surgeTemplatePath + `"}`,
+					Config:                testOutputConfigJSON(t, "", surgeTemplatePath),
 					RefreshUsageOnRequest: false,
 					UpdateInterval:        tt.updateInterval,
 				},
@@ -924,7 +941,7 @@ func TestRenderPreparedSurgeRewritesExistingManagedConfigInterval(t *testing.T) 
 		SubName:    "managed-interval-sub",
 		Subscription: models.Subcription{
 			Name:                  "managed-interval-sub",
-			Config:                `{"surge":"` + surgeTemplatePath + `"}`,
+			Config:                testOutputConfigJSON(t, "", surgeTemplatePath),
 			RefreshUsageOnRequest: false,
 			UpdateInterval:        6,
 		},
