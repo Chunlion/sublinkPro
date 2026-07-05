@@ -1864,7 +1864,7 @@ type NodeInfoUpdate struct {
 func BuildNodeInfoUpdate(existing Node, linkName string, link string, sourceSort int) NodeInfoUpdate {
 	return NodeInfoUpdate{
 		ID:              existing.ID,
-		Name:            linkName,
+		Name:            existing.NameAfterLinkNameUpdate(linkName),
 		LinkName:        linkName,
 		Link:            link,
 		ContentHash:     existing.ContentHash,

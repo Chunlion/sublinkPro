@@ -995,6 +995,7 @@ export default function NodeList() {
       if (isEditNode) {
         const processedLink = nodeLinks.join(',');
         await updateNode({
+          id: currentNode.ID ?? currentNode.Id ?? currentNode.id,
           oldname: currentNode.Name,
           oldlink: currentNode.Link,
           link: processedLink,

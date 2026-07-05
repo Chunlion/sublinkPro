@@ -147,8 +147,8 @@ Base: `/api/v1/nodes`
 
 ### Update Node
 **POST** `/nodes/update` — **form**
-- Located by `oldlink` (and/or `oldname`), NOT by id.
-- Fields: `oldname`, `oldlink`, `link` (required, the new/confirmed link), `name`, `nameMode`, `dialerProxyName`, `group`, `tags`
+- Located by `id` when provided; otherwise falls back to legacy `oldlink` (and/or `oldname`).
+- Fields: `id`, `oldname`, `oldlink`, `link` (required, the new/confirmed link), `name`, `nameMode`, `dialerProxyName`, `group`, `tags`
 
 ### Delete Node
 **DELETE** `/nodes/delete` (query: `?id=123`)

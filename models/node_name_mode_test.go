@@ -87,6 +87,42 @@ func TestNodeNameSyncFromLinkName(t *testing.T) {
 	}
 }
 
+func TestBuildNodeInfoUpdateUsesNameAfterLinkNameUpdate(t *testing.T) {
+	tests := []struct {
+		name string
+		node Node
+		want string
+	}{
+		{
+			name: "link mode syncs upstream name",
+			node: Node{ID: 1, Name: "old upstream", LinkName: "old upstream", NameMode: NodeNameModeLink},
+			want: "new upstream",
+		},
+		{
+			name: "remark mode preserves custom remark",
+			node: Node{ID: 2, Name: "custom remark", LinkName: "old upstream", NameMode: NodeNameModeRemark},
+			want: "custom remark",
+		},
+		{
+			name: "legacy custom mode preserves custom remark",
+			node: Node{ID: 3, Name: "legacy remark", LinkName: "old upstream", NameMode: "custom"},
+			want: "legacy remark",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			update := BuildNodeInfoUpdate(tt.node, "new upstream", "ss://new-link", 1)
+			if update.Name != tt.want {
+				t.Fatalf("BuildNodeInfoUpdate().Name = %q, want %q", update.Name, tt.want)
+			}
+			if update.LinkName != "new upstream" {
+				t.Fatalf("BuildNodeInfoUpdate().LinkName = %q, want new upstream", update.LinkName)
+			}
+		})
+	}
+}
+
 func TestGenerateUniqueNodeNameUsesReservedNames(t *testing.T) {
 	reserved := map[string]bool{"节点": true, "节点-2": true}
 

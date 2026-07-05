@@ -169,7 +169,8 @@ func IsTemplateEditMockProviderAllowed() bool {
 			return true
 		}
 	}
-	return strings.HasSuffix(os.Args[0], ".test")
+	testBinary := strings.ToLower(os.Args[0])
+	return strings.HasSuffix(testBinary, ".test") || strings.HasSuffix(testBinary, ".test.exe")
 }
 
 func NormalizeRequestType(value string) string {

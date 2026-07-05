@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"sublink/database"
@@ -155,6 +156,46 @@ func TestNodeUpdateDefaultsCustomNameToRemarkMode(t *testing.T) {
 		"oldlink":         node.Link,
 		"link":            node.Link,
 		"name":            "custom-remark",
+		"dialerProxyName": "",
+		"group":           "manual",
+	})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIResponse(t, recorder)
+	if response.Code != 200 {
+		t.Fatalf("response code = %d, msg = %s", response.Code, response.Msg)
+	}
+
+	var stored models.Node
+	if err := database.DB.First(&stored, node.ID).Error; err != nil {
+		t.Fatalf("reload updated node: %v", err)
+	}
+	if stored.Name != "custom-remark" || stored.NameMode != models.NodeNameModeRemark {
+		t.Fatalf("stored name state = Name:%q NameMode:%q, want custom-remark/remark", stored.Name, stored.NameMode)
+	}
+}
+
+func TestNodeUpdatePrefersIDOverLegacyNameAndLink(t *testing.T) {
+	setupNodeRawAPITestDB(t)
+
+	link := nodeRawAPITestLink("old-link-name")
+	node := createNodeRawAPITestNode(t, models.Node{
+		Name:        "old-link-name",
+		LinkName:    "old-link-name",
+		NameMode:    models.NodeNameModeLink,
+		Link:        link,
+		ContentHash: nodeRawAPITestContentHash(t, link),
+		Source:      "manual",
+	})
+
+	recorder := performFormRequest(t, NodeUpdadte, map[string]string{
+		"id":              strconv.Itoa(node.ID),
+		"oldname":         "stale-name",
+		"oldlink":         nodeRawAPITestLink("stale-link-name"),
+		"link":            node.Link,
+		"name":            "custom-remark",
+		"nameMode":        "custom",
 		"dialerProxyName": "",
 		"group":           "manual",
 	})

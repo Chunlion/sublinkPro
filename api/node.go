@@ -219,6 +219,10 @@ func parsePagination(c *gin.Context) (int, int) {
 
 func NodeUpdadte(c *gin.Context) {
 	var Node models.Node
+	id := strings.TrimSpace(c.PostForm("id"))
+	if id == "" {
+		id = strings.TrimSpace(c.PostForm("ID"))
+	}
 	name := c.PostForm("name")
 	oldname := c.PostForm("oldname")
 	oldlink := c.PostForm("oldlink")
@@ -234,13 +238,25 @@ func NodeUpdadte(c *gin.Context) {
 		return
 	}
 	userProvidedName := strings.TrimSpace(name) != ""
-	// 查找旧节点
-	Node.Name = oldname
-	Node.Link = oldlink
-	err := Node.Find()
-	if err != nil {
-		utils.FailWithMsg(c, err.Error())
-		return
+	if id != "" {
+		nodeID, err := strconv.Atoi(id)
+		if err != nil || nodeID <= 0 {
+			utils.FailWithMsg(c, "invalid node id")
+			return
+		}
+		if err := database.DB.First(&Node, nodeID).Error; err != nil {
+			utils.FailWithMsg(c, err.Error())
+			return
+		}
+	} else {
+		Node.Name = oldname
+		// 查找旧节点
+		Node.Link = oldlink
+		err := Node.Find()
+		if err != nil {
+			utils.FailWithMsg(c, err.Error())
+			return
+		}
 	}
 	oldContentHash := Node.ContentHash
 	if hasNameMode {
