@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -754,6 +755,266 @@ func TestScheduleClashToNodeLinksKeepsRemarkModeNameWhenItMatchesOldUpstreamName
 	}
 	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != existingNode.ID {
 		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, existingNode.ID)
+	}
+}
+
+func TestScheduleClashToNodeLinksMatchesSingleRenamedNodeWhenContentHashChanges(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "single-node-rename-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	originalProxy := protocol.Proxy{
+		Name:     "Japan A",
+		Type:     "ss",
+		Server:   "single-rename.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	existingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, originalProxy, "", 1)
+	if err := models.UpdateNodeFields(existingNode.ID, map[string]any{
+		"name":         "JP manual remark",
+		"name_mode":    models.NodeNameModeRemark,
+		"content_hash": "legacy-name-sensitive-hash",
+	}); err != nil {
+		t.Fatalf("customize existing node: %v", err)
+	}
+
+	updatedProxy := originalProxy
+	updatedProxy.Name = "Japan A new"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{updatedProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != existingNode.ID {
+		t.Fatalf("node ID = %d, want existing ID %d", nodes[0].ID, existingNode.ID)
+	}
+	if nodes[0].Name != "JP manual remark" || nodes[0].NameMode != models.NodeNameModeRemark {
+		t.Fatalf("manual remark was not preserved: Name=%q NameMode=%q", nodes[0].Name, nodes[0].NameMode)
+	}
+	if nodes[0].LinkName != "Japan A new" {
+		t.Fatalf("link name = %q, want updated upstream name", nodes[0].LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != existingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, existingNode.ID)
+	}
+}
+
+func TestScheduleClashToNodeLinksFallsBackToUniqueSourceSort(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "source-sort-fallback-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	firstProxy := protocol.Proxy{
+		Name:     "sort-a",
+		Type:     "ss",
+		Server:   "sort-a.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "old-password",
+	}
+	secondProxy := protocol.Proxy{
+		Name:     "sort-b",
+		Type:     "ss",
+		Server:   "sort-b.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "second-password",
+	}
+	firstExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, firstProxy, "", 1)
+	secondExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, secondProxy, "", 2)
+	if err := models.UpdateNodeFields(firstExistingNode.ID, map[string]any{
+		"name":      "sort-a manual",
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("customize first node: %v", err)
+	}
+
+	changedFirstProxy := firstProxy
+	changedFirstProxy.Name = "sort-a-renamed"
+	changedFirstProxy.Password = "rotated-password"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{changedFirstProxy, secondProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("source node count = %d, want 2", len(nodes))
+	}
+	var storedFirst, storedSecond *models.Node
+	for i := range nodes {
+		switch nodes[i].ID {
+		case firstExistingNode.ID:
+			storedFirst = &nodes[i]
+		case secondExistingNode.ID:
+			storedSecond = &nodes[i]
+		}
+	}
+	if storedFirst == nil || storedSecond == nil {
+		t.Fatalf("expected both original node IDs to be preserved; nodes=%+v", nodes)
+	}
+	if storedFirst.Name != "sort-a manual" || storedFirst.NameMode != models.NodeNameModeRemark {
+		t.Fatalf("manual remark was not preserved: Name=%q NameMode=%q", storedFirst.Name, storedFirst.NameMode)
+	}
+	if storedFirst.LinkName != "sort-a-renamed" || storedFirst.SourceSort != 1 {
+		t.Fatalf("first node state = LinkName:%q SourceSort:%d, want sort-a-renamed/1", storedFirst.LinkName, storedFirst.SourceSort)
+	}
+	if storedSecond.LinkName != "sort-b" || storedSecond.SourceSort != 2 {
+		t.Fatalf("second node state = LinkName:%q SourceSort:%d, want sort-b/2", storedSecond.LinkName, storedSecond.SourceSort)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != firstExistingNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, firstExistingNode.ID)
+	}
+}
+
+func TestSubscriptionNodeMatcherStableIdentityMatchIsNotDeleted(t *testing.T) {
+	oldProxy := protocol.Proxy{
+		Name:     "Japan A",
+		Type:     "ss",
+		Server:   "matcher-stable.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	oldLink := GenerateProxyLink(oldProxy)
+	if oldLink == "" {
+		t.Fatal("GenerateProxyLink returned empty old link")
+	}
+
+	newProxy := oldProxy
+	newProxy.Name = "Japan A new"
+	newLink := GenerateProxyLink(newProxy)
+	if newLink == "" {
+		t.Fatal("GenerateProxyLink returned empty new link")
+	}
+	newHash := protocol.GenerateProxyContentHash(newProxy)
+	currentIdentityCounts := map[string]int{subscriptionNodeStableIdentityKey(newLink): 1}
+	oldNode := models.Node{
+		ID:          101,
+		Name:        "JP manual remark",
+		LinkName:    "Japan A",
+		NameMode:    models.NodeNameModeRemark,
+		Link:        oldLink,
+		SourceSort:  1,
+		ContentHash: "legacy-content-hash",
+	}
+	matcher := newSubscriptionNodeMatcher([]models.Node{oldNode}, map[string]int{newHash: 1}, currentIdentityCounts)
+
+	matchedNode, ok := matcher.match(newLink, newHash, newProxy.Name, 1)
+	if !ok {
+		t.Fatal("matcher did not match stable identity")
+	}
+	if matchedNode.ID != oldNode.ID {
+		t.Fatalf("matched node ID = %d, want %d", matchedNode.ID, oldNode.ID)
+	}
+	if !matcher.isMatched(oldNode.ID) {
+		t.Fatalf("matched old node ID %d was not recorded", oldNode.ID)
+	}
+	nodesToDelete := subscriptionNodeIDsToDelete(map[int]models.Node{oldNode.ID: oldNode}, matcher)
+	if len(nodesToDelete) != 0 {
+		t.Fatalf("nodesToDelete = %v, want empty", nodesToDelete)
+	}
+}
+
+func TestScheduleClashToNodeLinksDeletesOnlyUnmatchedStaleNode(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "delete-unmatched-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	keptProxy := protocol.Proxy{
+		Name:     "keep-a",
+		Type:     "ss",
+		Server:   "keep-a.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "keep-password",
+	}
+	staleProxy := protocol.Proxy{
+		Name:     "stale-b",
+		Type:     "ss",
+		Server:   "stale-b.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "stale-password",
+	}
+	keptNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, keptProxy, "", 1)
+	staleNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, staleProxy, "", 2)
+	if err := models.UpdateNodeFields(keptNode.ID, map[string]any{
+		"name":         "keep manual",
+		"name_mode":    models.NodeNameModeRemark,
+		"content_hash": "legacy-keep-hash",
+	}); err != nil {
+		t.Fatalf("customize kept node: %v", err)
+	}
+
+	renamedKeptProxy := keptProxy
+	renamedKeptProxy.Name = "keep-a-renamed"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{renamedKeptProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("source node count = %d, want 1", len(nodes))
+	}
+	if nodes[0].ID != keptNode.ID {
+		t.Fatalf("remaining node ID = %d, want kept node ID %d; stale node ID was %d", nodes[0].ID, keptNode.ID, staleNode.ID)
+	}
+	if nodes[0].Name != "keep manual" || nodes[0].NameMode != models.NodeNameModeRemark {
+		t.Fatalf("kept manual remark was not preserved: Name=%q NameMode=%q", nodes[0].Name, nodes[0].NameMode)
+	}
+	if nodes[0].LinkName != "keep-a-renamed" {
+		t.Fatalf("link name = %q, want keep-a-renamed", nodes[0].LinkName)
+	}
+	if len(changedNodeIDs) != 1 || changedNodeIDs[0] != keptNode.ID {
+		t.Fatalf("changed IDs = %v, want [%d]", changedNodeIDs, keptNode.ID)
+	}
+	var stale models.Node
+	if err := database.DB.First(&stale, staleNode.ID).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("stale node lookup error = %v, want record not found", err)
 	}
 }
 

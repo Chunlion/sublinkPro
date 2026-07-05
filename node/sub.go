@@ -843,7 +843,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	proxys = applyAirportIntraNodeUniquify(airport, proxys)
 
 	// 创建现有节点匹配器；每个旧节点在本轮同步中只能被一个新节点认领。
-	existingMatcher := newSubscriptionNodeMatcher(existingNodes, currentCountsByHash)
+	currentStableIdentityCounts := buildCurrentSubscriptionStableIdentityCounts(proxys)
+	existingMatcher := newSubscriptionNodeMatcher(existingNodes, currentCountsByHash, currentStableIdentityCounts)
 
 	// 读取全局配置：是否启用跨机场去重（默认启用）
 	crossAirportDedupVal, _ := models.GetSetting("cross_airport_dedup_enabled")
@@ -1029,12 +1030,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	}
 
 	// 3. 收集需要删除的节点ID（本次订阅没有获取到但数据库中存在的节点）
-	nodeIDsToDelete := make([]int, 0)
-	for nodeID := range existingNodeByID {
-		if !existingMatcher.isMatched(nodeID) {
-			nodeIDsToDelete = append(nodeIDsToDelete, nodeID)
-		}
-	}
+	nodeIDsToDelete := subscriptionNodeIDsToDelete(existingNodeByID, existingMatcher)
 
 	// 4. 批量写入数据库（一次性操作，减少数据库I/O）
 	if len(nodeIDsToDelete) > 0 || len(nodesToUpdate) > 0 || len(nodesToAdd) > 0 {
