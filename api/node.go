@@ -247,6 +247,9 @@ func NodeUpdadte(c *gin.Context) {
 		Node.NameMode = models.NormalizeNodeNameMode(nameMode)
 	} else {
 		Node.NameMode = models.NormalizeNodeNameMode(Node.NameMode)
+		if userProvidedName {
+			Node.NameMode = models.NodeNameModeRemark
+		}
 	}
 
 	//更新构造节点元数据
@@ -476,6 +479,9 @@ func NodeAdd(c *gin.Context) {
 		return
 	}
 	userProvidedName := strings.TrimSpace(name) != ""
+	if userProvidedName && strings.TrimSpace(nameModeInput) == "" {
+		nameMode = models.NodeNameModeRemark
+	}
 
 	// 读取全局配置：是否启用跨机场去重（默认启用）
 	crossAirportDedupVal, _ := models.GetSetting("cross_airport_dedup_enabled")

@@ -901,6 +901,83 @@ func TestScheduleClashToNodeLinksKeepsRemarkWhenSameHashRenameCollidesWithDelete
 	}
 }
 
+func TestScheduleClashToNodeLinksPreservesExactLinkWhenSameHashNodesReordered(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "same-hash-reorder-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	baseProxy := protocol.Proxy{
+		Name:     "slot-a",
+		Type:     "ss",
+		Server:   "same-reorder.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "password",
+	}
+	firstExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, baseProxy, "", 1)
+	secondProxy := baseProxy
+	secondProxy.Name = "slot-b"
+	secondExistingNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, secondProxy, "", 2)
+	if firstExistingNode.ContentHash != secondExistingNode.ContentHash {
+		t.Fatalf("test setup content hashes differ: %q != %q", firstExistingNode.ContentHash, secondExistingNode.ContentHash)
+	}
+	if err := models.UpdateNodeFields(firstExistingNode.ID, map[string]any{
+		"name":      "custom-slot-a",
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("customize node remark: %v", err)
+	}
+
+	renamedFirstProxy := baseProxy
+	renamedFirstProxy.Name = "slot-a-renamed"
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{secondProxy, renamedFirstProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("source node count = %d, want 2", len(nodes))
+	}
+
+	var storedFirst, storedSecond *models.Node
+	for i := range nodes {
+		switch nodes[i].ID {
+		case firstExistingNode.ID:
+			storedFirst = &nodes[i]
+		case secondExistingNode.ID:
+			storedSecond = &nodes[i]
+		}
+	}
+	if storedFirst == nil || storedSecond == nil {
+		t.Fatalf("expected both original node IDs to be preserved; nodes=%+v", nodes)
+	}
+	if storedFirst.Name != "custom-slot-a" || storedFirst.NameMode != models.NodeNameModeRemark {
+		t.Fatalf("custom remark node not preserved: Name=%q NameMode=%q", storedFirst.Name, storedFirst.NameMode)
+	}
+	if storedFirst.LinkName != "slot-a-renamed" || storedFirst.SourceSort != 2 {
+		t.Fatalf("custom node upstream state = LinkName:%q SourceSort:%d, want slot-a-renamed/2", storedFirst.LinkName, storedFirst.SourceSort)
+	}
+	if storedSecond.LinkName != "slot-b" || storedSecond.SourceSort != 1 {
+		t.Fatalf("exact-link node upstream state = LinkName:%q SourceSort:%d, want slot-b/1", storedSecond.LinkName, storedSecond.SourceSort)
+	}
+	if len(changedNodeIDs) != 2 {
+		t.Fatalf("changed IDs = %v, want both reordered nodes", changedNodeIDs)
+	}
+}
+
 func TestScheduleClashToNodeLinksPreservesRemarkWhenExistingContentHashMissing(t *testing.T) {
 	setupSubscriptionCountryBackfillTestDB(t)
 

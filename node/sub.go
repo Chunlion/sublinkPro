@@ -692,98 +692,6 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 	return changedNodeIDs, usageInfo, err
 }
 
-type subscriptionNodeMatcher struct {
-	byLink     map[string][]models.Node
-	byHash     map[string][]models.Node
-	byHashName map[string]map[string][]models.Node
-	byHashSort map[string]map[int][]models.Node
-	matched    map[int]bool
-}
-
-func newSubscriptionNodeMatcher(nodes []models.Node) *subscriptionNodeMatcher {
-	matcher := &subscriptionNodeMatcher{
-		byLink:     make(map[string][]models.Node),
-		byHash:     make(map[string][]models.Node),
-		byHashName: make(map[string]map[string][]models.Node),
-		byHashSort: make(map[string]map[int][]models.Node),
-		matched:    make(map[int]bool, len(nodes)),
-	}
-	for _, node := range nodes {
-		if link := strings.TrimSpace(node.Link); link != "" {
-			matcher.byLink[link] = append(matcher.byLink[link], node)
-		}
-		if node.ContentHash == "" {
-			continue
-		}
-		matcher.byHash[node.ContentHash] = append(matcher.byHash[node.ContentHash], node)
-
-		name := subscriptionNodeOriginalName(node)
-		if name != "" {
-			if matcher.byHashName[node.ContentHash] == nil {
-				matcher.byHashName[node.ContentHash] = make(map[string][]models.Node)
-			}
-			matcher.byHashName[node.ContentHash][name] = append(matcher.byHashName[node.ContentHash][name], node)
-		}
-		if node.SourceSort > 0 {
-			if matcher.byHashSort[node.ContentHash] == nil {
-				matcher.byHashSort[node.ContentHash] = make(map[int][]models.Node)
-			}
-			matcher.byHashSort[node.ContentHash][node.SourceSort] = append(matcher.byHashSort[node.ContentHash][node.SourceSort], node)
-		}
-	}
-	return matcher
-}
-
-func subscriptionNodeOriginalName(node models.Node) string {
-	name := strings.TrimSpace(node.LinkName)
-	if name == "" {
-		name = strings.TrimSpace(node.Name)
-	}
-	return name
-}
-
-func (matcher *subscriptionNodeMatcher) isMatched(id int) bool {
-	if matcher == nil {
-		return false
-	}
-	return matcher.matched[id]
-}
-
-func (matcher *subscriptionNodeMatcher) firstUnmatched(nodes []models.Node) (models.Node, bool) {
-	for _, node := range nodes {
-		if !matcher.matched[node.ID] {
-			matcher.matched[node.ID] = true
-			return node, true
-		}
-	}
-	return models.Node{}, false
-}
-
-func (matcher *subscriptionNodeMatcher) match(link, contentHash, linkName string, sourceSort int) (models.Node, bool) {
-	if matcher == nil {
-		return models.Node{}, false
-	}
-	if contentHash != "" && sourceSort > 0 {
-		if node, ok := matcher.firstUnmatched(matcher.byHashSort[contentHash][sourceSort]); ok {
-			return node, true
-		}
-	}
-	if link != "" {
-		if node, ok := matcher.firstUnmatched(matcher.byLink[link]); ok {
-			return node, true
-		}
-	}
-	if contentHash != "" {
-		if node, ok := matcher.firstUnmatched(matcher.byHashName[contentHash][strings.TrimSpace(linkName)]); ok {
-			return node, true
-		}
-		if node, ok := matcher.firstUnmatched(matcher.byHash[contentHash]); ok {
-			return node, true
-		}
-	}
-	return models.Node{}, false
-}
-
 // scheduleClashToNodeLinks 将 Clash 代理配置转换为节点链接并保存到数据库
 // ctx: context 用于任务取消和超时控制
 // id: 订阅ID
@@ -886,6 +794,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	// 预扫描：统计本次拉取中每个 ContentHash 对应的名称集合（trim 后）
 	// 用于识别同 hash 多名称的信息节点（如"到期时间"、"剩余流量"），这类节点应放行入库且需要按名称粒度清理
 	currentNamesByHash := make(map[string]map[string]bool)
+	currentCountsByHash := make(map[string]int)
 	for _, p := range proxys {
 		name := strings.TrimSpace(p.Name)
 		p.Server = utils.WrapIPv6Host(p.Server)
@@ -893,6 +802,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 		if ch == "" {
 			continue
 		}
+		currentCountsByHash[ch]++
 		if currentNamesByHash[ch] == nil {
 			currentNamesByHash[ch] = make(map[string]bool)
 		}
@@ -933,7 +843,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	proxys = applyAirportIntraNodeUniquify(airport, proxys)
 
 	// 创建现有节点匹配器；每个旧节点在本轮同步中只能被一个新节点认领。
-	existingMatcher := newSubscriptionNodeMatcher(existingNodes)
+	existingMatcher := newSubscriptionNodeMatcher(existingNodes, currentCountsByHash)
 
 	// 读取全局配置：是否启用跨机场去重（默认启用）
 	crossAirportDedupVal, _ := models.GetSetting("cross_airport_dedup_enabled")
