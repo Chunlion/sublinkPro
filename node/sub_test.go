@@ -817,6 +817,120 @@ func TestScheduleClashToNodeLinksMatchesSingleRenamedNodeWhenContentHashChanges(
 	}
 }
 
+func TestScheduleClashToNodeLinksPreservesHysteria2RemarkWhenRenamedAndContentHashChanges(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	airport := &models.Airport{
+		Name:     "hy2-stable-sync-airport",
+		URL:      "https://example.com/sub.yaml",
+		CronExpr: "0 */12 * * *",
+		Enabled:  true,
+		Group:    "default",
+	}
+	if err := airport.Add(); err != nil {
+		t.Fatalf("add airport: %v", err)
+	}
+
+	originalProxy := protocol.Proxy{
+		Name:          "hy2-old-name",
+		Type:          "hysteria2",
+		Server:        "hy2-sync.example.com",
+		Port:          443,
+		Password:      "hy2-password",
+		Auth_str:      "hy2-password",
+		Sni:           "hy2.example.com",
+		Obfs:          "salamander",
+		Obfs_password: "obfs-password",
+		Alpn:          []string{"h3"},
+	}
+	otherProxy := protocol.Proxy{
+		Name:     "ss-unchanged",
+		Type:     "ss",
+		Server:   "ss-unchanged.example.com",
+		Port:     8388,
+		Cipher:   "aes-128-gcm",
+		Password: "ss-password",
+	}
+	targetNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, originalProxy, "", 1)
+	otherNode := createExistingSubscriptionNode(t, airport.ID, airport.Name, otherProxy, "", 2)
+	if err := models.UpdateNodeFields(targetNode.ID, map[string]any{
+		"name":      "hy2 manual remark",
+		"name_mode": models.NodeNameModeRemark,
+	}); err != nil {
+		t.Fatalf("customize hy2 node remark: %v", err)
+	}
+
+	updatedProxy := originalProxy
+	updatedProxy.Name = "hy2-new-upstream-name"
+	updatedProxy.Up = protocol.Mbps(20)
+	updatedProxy.Down = protocol.Mbps(80)
+	newContentHash := protocol.GenerateProxyContentHash(updatedProxy)
+	if targetNode.ContentHash == newContentHash {
+		t.Fatalf("test setup content hash did not change: %q", newContentHash)
+	}
+	updatedLink := GenerateProxyLink(updatedProxy)
+	if updatedLink == "" {
+		t.Fatal("GenerateProxyLink returned empty updated HY2 link")
+	}
+	oldIdentity := subscriptionNodeStableIdentityKey(targetNode.Link)
+	newIdentity := subscriptionNodeStableIdentityKey(updatedLink)
+	if oldIdentity == "" || oldIdentity != newIdentity {
+		t.Fatalf("HY2 stable identity mismatch:\nold=%s\nnew=%s", oldIdentity, newIdentity)
+	}
+
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), airport.ID, []protocol.Proxy{otherProxy, updatedProxy}, airport.Name, nil, nil)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+
+	nodes, err := models.ListBySourceID(airport.ID)
+	if err != nil {
+		t.Fatalf("list source nodes: %v", err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("source node count = %d, want 2", len(nodes))
+	}
+
+	var storedTarget, storedOther *models.Node
+	for i := range nodes {
+		switch nodes[i].ID {
+		case targetNode.ID:
+			storedTarget = &nodes[i]
+		case otherNode.ID:
+			storedOther = &nodes[i]
+		}
+	}
+	if storedTarget == nil {
+		t.Fatalf("HY2 old node ID %d was deleted or replaced; nodes=%+v", targetNode.ID, nodes)
+	}
+	if storedOther == nil {
+		t.Fatalf("unchanged node ID %d was deleted or replaced; nodes=%+v", otherNode.ID, nodes)
+	}
+	if storedTarget.Name != "hy2 manual remark" {
+		t.Fatalf("HY2 Name = %q, want manual remark", storedTarget.Name)
+	}
+	if storedTarget.LinkName != "hy2-new-upstream-name" {
+		t.Fatalf("HY2 LinkName = %q, want updated upstream name", storedTarget.LinkName)
+	}
+	if storedTarget.NameMode != models.NodeNameModeRemark {
+		t.Fatalf("HY2 NameMode = %q, want %q", storedTarget.NameMode, models.NodeNameModeRemark)
+	}
+	if storedTarget.ContentHash != newContentHash {
+		t.Fatalf("HY2 ContentHash = %q, want %q", storedTarget.ContentHash, newContentHash)
+	}
+
+	foundTargetChange := false
+	for _, id := range changedNodeIDs {
+		if id == targetNode.ID {
+			foundTargetChange = true
+			break
+		}
+	}
+	if !foundTargetChange {
+		t.Fatalf("changed IDs = %v, want to include HY2 node ID %d", changedNodeIDs, targetNode.ID)
+	}
+}
+
 func TestScheduleClashToNodeLinksFallsBackToUniqueSourceSort(t *testing.T) {
 	setupSubscriptionCountryBackfillTestDB(t)
 
