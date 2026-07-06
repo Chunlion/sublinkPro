@@ -946,6 +946,176 @@ func TestSubscriptionNodeMatcherStableIdentityMatchIsNotDeleted(t *testing.T) {
 	}
 }
 
+func TestSubscriptionNodeMatcherStableIdentityMatchesAddedProtocolsOnRename(t *testing.T) {
+	cases := []struct {
+		name  string
+		proxy protocol.Proxy
+	}{
+		{
+			name: "hysteria",
+			proxy: protocol.Proxy{
+				Type:     "hysteria",
+				Server:   "hy-stable.example.com",
+				Port:     443,
+				Auth_str: "hy-auth",
+				Protocol: "udp",
+				Peer:     "hy.example.com",
+				Alpn:     []string{"h3"},
+			},
+		},
+		{
+			name: "hysteria2",
+			proxy: protocol.Proxy{
+				Type:          "hysteria2",
+				Server:        "hy2-stable.example.com",
+				Port:          443,
+				Password:      "hy2-password",
+				Auth_str:      "hy2-password",
+				Sni:           "hy2.example.com",
+				Obfs:          "salamander",
+				Obfs_password: "obfs-password",
+				Alpn:          []string{"h3"},
+			},
+		},
+		{
+			name: "tuic",
+			proxy: protocol.Proxy{
+				Type:                  "tuic",
+				Server:                "tuic-stable.example.com",
+				Port:                  443,
+				Uuid:                  "12345678-1234-1234-1234-123456789abc",
+				Password:              "tuic-password",
+				Version:               5,
+				Tls:                   true,
+				Sni:                   "tuic.example.com",
+				Congestion_controller: "bbr",
+				Udp_relay_mode:        "native",
+				Alpn:                  []string{"h3"},
+			},
+		},
+		{
+			name: "ssr",
+			proxy: protocol.Proxy{
+				Type:          "ssr",
+				Server:        "ssr-stable.example.com",
+				Port:          8388,
+				Cipher:        "aes-128-gcm",
+				Password:      "ssr-password",
+				Protocol:      "auth_sha1_v4",
+				Obfs:          "tls1.2_ticket_auth",
+				Obfs_password: "cdn.example.com",
+			},
+		},
+		{
+			name: "wireguard",
+			proxy: protocol.Proxy{
+				Type:           "wireguard",
+				Server:         "wg-stable.example.com",
+				Port:           51820,
+				Private_key:    "client-private-key",
+				Public_key:     "server-public-key",
+				Pre_shared_key: "pre-shared-key",
+				Ip:             "10.0.0.2",
+				Mtu:            1280,
+				Reserved:       []int{1, 2, 3},
+			},
+		},
+		{
+			name: "anytls",
+			proxy: protocol.Proxy{
+				Type:     "anytls",
+				Server:   "anytls-stable.example.com",
+				Port:     443,
+				Password: "anytls-password",
+				Sni:      "anytls.example.com",
+				Alpn:     []string{"h2", "http/1.1"},
+			},
+		},
+		{
+			name: "http",
+			proxy: protocol.Proxy{
+				Type:   "http",
+				Server: "http-stable.example.com",
+				Port:   8080,
+			},
+		},
+		{
+			name: "https",
+			proxy: protocol.Proxy{
+				Type:     "https",
+				Server:   "https-stable.example.com",
+				Port:     8443,
+				Username: "https-user",
+				Password: "https-password",
+				Tls:      true,
+				Sni:      "https.example.com",
+			},
+		},
+		{
+			name: "socks5",
+			proxy: protocol.Proxy{
+				Type:     "socks5",
+				Server:   "socks-stable.example.com",
+				Port:     1080,
+				Username: "socks-user",
+				Password: "socks-password",
+			},
+		},
+	}
+
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			oldProxy := tc.proxy
+			oldProxy.Name = tc.name + " old"
+			oldLink := GenerateProxyLink(oldProxy)
+			if oldLink == "" {
+				t.Fatal("GenerateProxyLink returned empty old link")
+			}
+
+			newProxy := oldProxy
+			newProxy.Name = tc.name + " renamed"
+			newLink := GenerateProxyLink(newProxy)
+			if newLink == "" {
+				t.Fatal("GenerateProxyLink returned empty new link")
+			}
+
+			oldKey := subscriptionNodeStableIdentityKey(oldLink)
+			newKey := subscriptionNodeStableIdentityKey(newLink)
+			if oldKey == "" || newKey == "" {
+				t.Fatalf("stable identity key missing: old=%q new=%q", oldKey, newKey)
+			}
+			if oldKey != newKey {
+				t.Fatalf("stable identity key changed after rename:\nold=%s\nnew=%s", oldKey, newKey)
+			}
+
+			newHash := protocol.GenerateProxyContentHash(newProxy)
+			oldNode := models.Node{
+				ID:          201 + i,
+				Name:        tc.name + " manual remark",
+				LinkName:    oldProxy.Name,
+				NameMode:    models.NodeNameModeRemark,
+				Link:        oldLink,
+				SourceSort:  1,
+				ContentHash: "legacy-content-hash-" + tc.name,
+			}
+			matcher := newSubscriptionNodeMatcher([]models.Node{oldNode}, map[string]int{newHash: 1}, map[string]int{newKey: 1})
+
+			matchedNode, ok := matcher.match(newLink, newHash, newProxy.Name, 1)
+			if !ok {
+				t.Fatal("matcher did not match stable identity")
+			}
+			if matchedNode.ID != oldNode.ID {
+				t.Fatalf("matched node ID = %d, want %d", matchedNode.ID, oldNode.ID)
+			}
+
+			nodesToDelete := subscriptionNodeIDsToDelete(map[int]models.Node{oldNode.ID: oldNode}, matcher)
+			if len(nodesToDelete) != 0 {
+				t.Fatalf("nodesToDelete = %v, want empty", nodesToDelete)
+			}
+		})
+	}
+}
+
 func TestScheduleClashToNodeLinksDeletesOnlyUnmatchedStaleNode(t *testing.T) {
 	setupSubscriptionCountryBackfillTestDB(t)
 
