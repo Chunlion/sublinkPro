@@ -25,7 +25,9 @@ COPY . .
 # 把前端构建产物复制到 static 目录
 COPY --from=frontend-builder /frontend/webs/dist ./static
 
-RUN CGO_ENABLED=0 go build -tags=prod -ldflags="-s -w" -o sublinkPro
+ARG VERSION=custom
+RUN printf '%s\n' "$VERSION" > VERSION && \
+    CGO_ENABLED=0 go build -tags=prod -ldflags="-s -w" -o sublinkPro
 
 
 # 3. 运行镜像

@@ -13,6 +13,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: custom-docker-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -28,7 +32,7 @@ jobs:
           ref: custom
           fetch-depth: 0
 
-      - name: Sync upstream
+      - name: Sync upstream into custom
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
@@ -39,6 +43,9 @@ jobs:
           git fetch upstream "${UPSTREAM_BRANCH}"
           git fetch origin "${CUSTOM_BRANCH}"
           git switch "${CUSTOM_BRANCH}"
+          git config merge.keepCustomWorkflows.name "Keep custom workflow files"
+          git config merge.keepCustomWorkflows.driver true
+          echo ".github/workflows/* merge=keepCustomWorkflows" > .git/info/attributes
 
           if git merge --ff-only "upstream/${UPSTREAM_BRANCH}"; then
             echo "Upstream already merged or fast-forwarded."
@@ -52,11 +59,13 @@ jobs:
             echo "No upstream changes to push."
           fi
 
-      - name: Set lowercase image name
+      - name: Set image metadata
         shell: bash
         run: |
+          image_sha="$(git rev-parse HEAD)"
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sublinkpro" >> "$GITHUB_ENV"
-          echo "IMAGE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "IMAGE_SHA=${image_sha}" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=custom-${image_sha:0:12}" >> "$GITHUB_ENV"
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -78,5 +87,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:custom
             ${{ env.IMAGE_NAME }}:${{ env.IMAGE_SHA }}
+          build-args: |
+            VERSION=${{ env.IMAGE_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // material-ui
@@ -10,11 +10,9 @@ import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import Button from '@mui/material/Button';
 
 // assets
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import NewReleasesIcon from '@mui/icons-material/NewReleases';
 
 // project imports
 import useConfig from 'hooks/useConfig';
@@ -25,7 +23,6 @@ import { withAlpha } from 'utils/colorUtils';
 // GitHub 仓库配置
 const GITHUB_REPO = 'ZeroDeng01/sublinkPro';
 const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
-const GITHUB_API_RELEASES = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 // ==============================|| SIDEBAR - VERSION CARD ||============================== //
 
@@ -76,83 +73,18 @@ function MenuCard() {
   const { isDark } = useResolvedColorScheme();
   const palette = theme.vars?.palette || theme.palette;
   const { version } = useConfig();
-  const [latestVersion, setLatestVersion] = useState('');
-  const [loading, setLoading] = useState(true);
+  const hasUpdate = false;
 
-  useEffect(() => {
-    const fetchLatestVersion = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(GITHUB_API_RELEASES);
-        if (res.ok) {
-          const data = await res.json();
-          setLatestVersion(data.tag_name || '');
-        }
-      } catch (error) {
-        console.error('获取版本信息失败:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLatestVersion();
-  }, []);
-
-  const currentVersion = version || 'dev';
-  const normalizedCurrentVersion = currentVersion.replace(/^v/, '');
-  const normalizedLatestVersion = latestVersion.replace(/^v/, '');
-  const hasLatestVersion = Boolean(normalizedLatestVersion);
-  const hasUpdate = hasLatestVersion && Boolean(normalizedCurrentVersion) && normalizedLatestVersion !== normalizedCurrentVersion;
-  const releasesPageHref = `${GITHUB_URL}/releases`;
-  const releaseHref = latestVersion ? `${GITHUB_URL}/releases/tag/${latestVersion}` : releasesPageHref;
+  const currentVersion = version || 'custom';
 
   const versionStatus = useMemo(() => {
-    if (loading) {
-      return {
-        key: 'loading',
-        label: t('version.status.loading'),
-        tone: 'info',
-        hint: t('version.hint.loading'),
-        actionLabel: t('version.actions.releases'),
-        actionHref: releasesPageHref,
-        actionVariant: 'text'
-      };
-    }
-
-    if (hasUpdate) {
-      return {
-        key: 'update',
-        label: t('version.status.update'),
-        tone: 'warning',
-        hint: latestVersion ? t('version.hint.latest', { version: latestVersion }) : t('version.hint.updateAvailable'),
-        actionLabel: t('version.actions.update'),
-        actionHref: releaseHref,
-        actionVariant: 'contained'
-      };
-    }
-
-    if (hasLatestVersion) {
-      return {
-        key: 'current',
-        label: t('version.status.current'),
-        tone: 'success',
-        hint: latestVersion ? t('version.hint.synced', { version: latestVersion }) : t('version.hint.noUpdate'),
-        actionLabel: t('version.actions.releases'),
-        actionHref: releasesPageHref,
-        actionVariant: 'text'
-      };
-    }
-
     return {
-      key: 'unknown',
-      label: t('version.status.unknown'),
-      tone: 'default',
-      hint: t('version.hint.manual'),
-      actionLabel: t('version.actions.releases'),
-      actionHref: releasesPageHref,
-      actionVariant: 'text'
+      key: 'current',
+      label: t('version.status.current'),
+      tone: 'success',
+      hint: t('version.hint.noUpdate')
     };
-  }, [hasLatestVersion, hasUpdate, latestVersion, loading, releaseHref, releasesPageHref, t]);
+  }, [t]);
 
   const statusToneMap = {
     warning: isDark ? theme.palette.warning.main : theme.palette.warning.dark,
@@ -180,11 +112,6 @@ function MenuCard() {
   } = getMenuCardTokens(theme, isDark, hasUpdate, statusColor, versionStatus);
   const titleAccentColor = hasUpdate ? statusColor : theme.palette.primary.main;
   const iconButtonColor = hasUpdate ? statusColor : mutedTextColor;
-  const ctaBackground = isDark ? alpha(theme.palette.warning.main, 0.18) : theme.palette.warning.dark;
-  const ctaHoverBackground = isDark ? alpha(theme.palette.warning.main, 0.26) : theme.palette.warning.main;
-  const ctaColor = isDark ? withAlpha(palette.warning.light, 0.98) : theme.palette.common.white;
-  const ctaBorderColor = isDark ? alpha(theme.palette.warning.main, 0.28) : alpha(theme.palette.warning.dark, 0.22);
-  const statusActionIsContained = versionStatus.actionVariant === 'contained';
 
   return (
     <Card
@@ -234,7 +161,7 @@ function MenuCard() {
               flexShrink: 0
             }}
           >
-            {hasUpdate ? <NewReleasesIcon fontSize="small" /> : <InfoOutlinedIcon fontSize="small" />}
+            <InfoOutlinedIcon fontSize="small" />
           </Avatar>
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -364,59 +291,6 @@ function MenuCard() {
               </Box>
             </Box>
 
-            {statusActionIsContained ? (
-              <Button
-                size="small"
-                variant="contained"
-                color="warning"
-                href={versionStatus.actionHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  minWidth: 'auto',
-                  px: 1.05,
-                  py: 0.35,
-                  fontSize: '0.72rem',
-                  lineHeight: 1,
-                  fontWeight: 700,
-                  color: ctaColor,
-                  bgcolor: ctaBackground,
-                  border: '1px solid',
-                  borderColor: ctaBorderColor,
-                  boxShadow: 'none',
-                  flexShrink: 0,
-                  '&:hover': {
-                    bgcolor: ctaHoverBackground,
-                    boxShadow: 'none'
-                  }
-                }}
-              >
-                {versionStatus.actionLabel}
-              </Button>
-            ) : (
-              <Button
-                size="small"
-                variant="text"
-                href={versionStatus.actionHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  minWidth: 'auto',
-                  px: 0.6,
-                  py: 0.25,
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  color: mutedTextColor,
-                  '&:hover': {
-                    bgcolor: withAlpha(theme.palette.primary.main, isDark ? 0.12 : 0.06),
-                    color: statusTextColor
-                  },
-                  flexShrink: 0
-                }}
-              >
-                {versionStatus.actionLabel}
-              </Button>
-            )}
           </Box>
         </Box>
       </Box>
