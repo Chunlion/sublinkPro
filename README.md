@@ -28,8 +28,8 @@
     <a href="https://github.com/ZeroDeng01/sublinkPro/issues">
       <img src="https://img.shields.io/badge/Feedback-Issues-blue?style=flat-square&logo=github" alt="Issues"/>
     </a>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/releases">
-      <img src="https://img.shields.io/badge/Download-Releases-green?style=flat-square&logo=github" alt="Releases"/>
+    <a href="https://github.com/Chunlion/sublinkPro/pkgs/container/sublinkpro">
+      <img src="https://img.shields.io/badge/GHCR-custom-green?style=flat-square&logo=github" alt="GHCR Custom Image"/>
     </a>
   </p>
 </div>
@@ -91,7 +91,7 @@ Create `docker-compose.yml`:
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -116,7 +116,7 @@ SQLite is used by default. To switch to MySQL or PostgreSQL, set the database co
 > Even when `SUBLINK_WEB_BASE_PATH` is configured to hide the admin UI entry, API paths (`/api/*`) and subscription or share paths (`/c/*`) stay at the root path. This is a project specific frontend and backend integration rule.
 
 > [!TIP]
-> For more install methods, including Docker, one line scripts, updates, and upgrades, see the [📦 Installation Guide](docs/installation.md).
+> For more install methods, including Docker, custom image updates, and uninstall, see the [📦 Installation Guide](docs/installation.md).
 
 > [!TIP]
 > The Docker image includes `cloudflared`. After signing in, open `User Center -> Cloudflare Tunnel`, enter the token, and start it. When auto connect is enabled, the Tunnel connects when the service starts.
@@ -149,7 +149,7 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 
 | Document | Description |
 |:---|:---|
-| [📦 Installation](docs/installation.md) | Docker, one line scripts, updates, Watchtower automatic updates |
+| [📦 Installation](docs/installation.md) | Docker, custom image updates, uninstall, Watchtower automatic updates |
 | [⚙️ Configuration](docs/configuration.md) | Environment variables, command line flags, CAPTCHA configuration |
 
 ### ✨ Feature Guides

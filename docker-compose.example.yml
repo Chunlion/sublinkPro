@@ -7,8 +7,8 @@
 services:
   sublinkpro:
     # 镜像选择
-    # image: zerodeng/sublink-pro:dev    # 开发版（功能尝鲜）
-    image: zerodeng/sublink-pro:latest   # 稳定版（推荐）
+    # image: ghcr.io/chunlion/sublinkpro:<commit-sha> # 固定到指定 custom 构建
+    image: ghcr.io/chunlion/sublinkpro:custom          # custom 分支镜像（推荐）
     
     container_name: sublinkpro
     

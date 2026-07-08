@@ -28,8 +28,8 @@
     <a href="https://github.com/ZeroDeng01/sublinkPro/issues">
       <img src="https://img.shields.io/badge/问题反馈-Issues-blue?style=flat-square&logo=github" alt="Issues"/>
     </a>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/releases">
-      <img src="https://img.shields.io/badge/版本下载-Releases-green?style=flat-square&logo=github" alt="Releases"/>
+    <a href="https://github.com/Chunlion/sublinkPro/pkgs/container/sublinkpro">
+      <img src="https://img.shields.io/badge/GHCR-custom-green?style=flat-square&logo=github" alt="GHCR Custom Image"/>
     </a>
   </p>
 </div>
@@ -91,7 +91,7 @@
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -116,7 +116,7 @@ docker-compose up -d
 > 即使配置了 `SUBLINK_WEB_BASE_PATH` 隐藏管理界面入口，API (`/api/*`) 与订阅/分享访问路径 (`/c/*`) 仍保持在根路径下，这是本项目特有的前后端集成行为。
 
 > [!TIP]
-> 更多安装方式（Docker、一键脚本、更新升级等）请参阅 [📦 安装部署指南](docs/installation.zh-CN.md)
+> 更多安装方式（Docker、custom 镜像更新、卸载等）请参阅 [📦 安装部署指南](docs/installation.zh-CN.md)
 
 > [!TIP]
 > Docker 镜像已内置 `cloudflared`。登录后可在 `用户中心 -> Cloudflare Tunnel` 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。
@@ -149,7 +149,7 @@ docker-compose up -d
 
 | 文档 | 说明 |
 |:---|:---|
-| [📦 安装部署](docs/installation.zh-CN.md) | Docker、一键脚本、更新升级、Watchtower 自动更新 |
+| [📦 安装部署](docs/installation.zh-CN.md) | Docker、custom 镜像更新、卸载、Watchtower 自动更新 |
 | [⚙️ 配置说明](docs/configuration.zh-CN.md) | 环境变量、命令行参数、验证码配置 |
 
 ### ✨ 功能详解
