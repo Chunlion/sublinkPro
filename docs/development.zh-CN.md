@@ -60,7 +60,7 @@ sublinkPro/
 
 - 多个页面都会用到的通用状态面板，应放在 `webs/src/components/`。
 - 只服务于机场管理的弹窗，应放在 `webs/src/views/airports/component/`。
-- 只服务于新的 `system-updates` 页面时，面板应放在 `webs/src/views/system-updates/components/`；只有明确需要跨页面复用时，才上移到 `webs/src/components/`。
+- 只服务于应用设置页面时，面板应放在 `webs/src/views/settings/components/`；只有明确需要跨页面复用时，才上移到 `webs/src/components/`。
 
 ---
 
@@ -83,7 +83,7 @@ sublinkPro/
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/ZeroDeng01/sublinkPro.git
+git clone -b custom https://github.com/Chunlion/sublinkPro.git
 cd sublinkPro
 ```
 

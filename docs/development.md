@@ -60,7 +60,7 @@ Examples:
 
 - A reusable status panel used by multiple pages belongs in `webs/src/components/`.
 - A dialog used only by airport management belongs under `webs/src/views/airports/component/`.
-- A panel used only by a new `system-updates` page belongs under `webs/src/views/system-updates/components/` unless it is intentionally shared elsewhere.
+- A panel used only by application settings belongs under `webs/src/views/settings/components/` unless it is intentionally shared elsewhere.
 
 ---
 
@@ -83,7 +83,7 @@ Examples:
 ### 1. Clone the project
 
 ```bash
-git clone https://github.com/ZeroDeng01/sublinkPro.git
+git clone -b custom https://github.com/Chunlion/sublinkPro.git
 cd sublinkPro
 ```
 

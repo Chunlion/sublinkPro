@@ -3297,22 +3297,10 @@
     "currentSystemVersion": "Current system version",
     "githubRepo": "GitHub repository",
     "status": {
-      "current": "Current",
-      "loading": "Checking...",
-      "unknown": "Unknown",
-      "update": "Update available"
+      "current": "Current"
     },
     "hint": {
-      "latest": "Already on the latest version",
-      "loading": "Checking the latest release...",
-      "manual": "Open GitHub to check releases manually",
-      "noUpdate": "No update available",
-      "synced": "Version information is up to date",
-      "updateAvailable": "A new version is available"
-    },
-    "actions": {
-      "releases": "View releases",
-      "update": "Update"
+      "customBuild": "Custom branch build"
     }
   },
   "accessKeys": {

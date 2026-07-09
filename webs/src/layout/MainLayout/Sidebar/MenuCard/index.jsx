@@ -21,12 +21,12 @@ import { getReadableTextTokens, getSurfaceTokens } from 'themes/surfaceTokens';
 import { withAlpha } from 'utils/colorUtils';
 
 // GitHub 仓库配置
-const GITHUB_REPO = 'ZeroDeng01/sublinkPro';
+const GITHUB_REPO = 'Chunlion/sublinkPro';
 const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
 
 // ==============================|| SIDEBAR - VERSION CARD ||============================== //
 
-const getMenuCardTokens = (theme, isDark, hasUpdate, statusColor, versionStatus) => {
+const getMenuCardTokens = (theme, isDark, statusColor) => {
   const { palette, dialogSurface, mutedPanelSurface, nestedPanelSurface, panelBorder } = getSurfaceTokens(theme, isDark);
   const { primaryText, secondaryText, tertiaryText } = getReadableTextTokens(theme, isDark);
 
@@ -39,7 +39,7 @@ const getMenuCardTokens = (theme, isDark, hasUpdate, statusColor, versionStatus)
     cardSurface: isDark
       ? `linear-gradient(180deg, ${withAlpha(palette.background.paper, 0.96)} 0%, ${dialogSurface} 100%)`
       : `linear-gradient(180deg, ${withAlpha(palette.background.paper, 0.98)} 0%, ${withAlpha(palette.background.default, 0.9)} 100%)`,
-    cardBorder: hasUpdate ? withAlpha(statusColor, isDark ? 0.28 : 0.2) : panelBorder,
+    cardBorder: panelBorder,
     panelBorder,
     statusBorder: withAlpha(statusColor, isDark ? 0.28 : 0.2),
     currentVersionSurface: isDark
@@ -48,22 +48,13 @@ const getMenuCardTokens = (theme, isDark, hasUpdate, statusColor, versionStatus)
     currentVersionBorder: isDark ? withAlpha(palette.divider, 0.76) : withAlpha(palette.divider, 0.76),
     statusPanelSurface: isDark
       ? `linear-gradient(180deg, ${withAlpha(statusColor, 0.14)} 0%, ${withAlpha(mutedPanelSurface, 0.96)} 100%)`
-      : withAlpha(statusColor, versionStatus.key === 'update' ? 0.08 : 0.06),
+      : withAlpha(statusColor, 0.06),
     iconButtonBackground: isDark ? withAlpha(nestedPanelSurface, 0.42) : withAlpha(palette.background.paper, 0.98),
-    iconButtonHoverBackground: isDark
-      ? withAlpha(nestedPanelSurface, 0.58)
-      : withAlpha(hasUpdate ? statusColor : theme.palette.primary.main, 0.08),
+    iconButtonHoverBackground: isDark ? withAlpha(nestedPanelSurface, 0.58) : withAlpha(theme.palette.primary.main, 0.08),
     titleColor: isDark ? withAlpha(primaryText, 0.96) : primaryText,
     mutedTextColor: isDark ? withAlpha(primaryText, 0.72) : secondaryText,
     statusTextColor: isDark ? withAlpha(primaryText, 0.88) : primaryText,
-    statusHintColor:
-      versionStatus.key === 'update'
-        ? isDark
-          ? withAlpha(theme.palette.warning.light, 0.9)
-          : secondaryText
-        : isDark
-          ? withAlpha(primaryText, 0.72)
-          : secondaryText
+    statusHintColor: isDark ? withAlpha(primaryText, 0.72) : secondaryText
   };
 };
 
@@ -73,7 +64,6 @@ function MenuCard() {
   const { isDark } = useResolvedColorScheme();
   const palette = theme.vars?.palette || theme.palette;
   const { version } = useConfig();
-  const hasUpdate = false;
 
   const currentVersion = version || 'custom';
 
@@ -82,14 +72,12 @@ function MenuCard() {
       key: 'current',
       label: t('version.status.current'),
       tone: 'success',
-      hint: t('version.hint.noUpdate')
+      hint: t('version.hint.customBuild')
     };
   }, [t]);
 
   const statusToneMap = {
-    warning: isDark ? theme.palette.warning.main : theme.palette.warning.dark,
     success: theme.palette.success.main,
-    info: theme.palette.info.main,
     default: isDark ? withAlpha(palette.text.primary, 0.72) : palette.text.secondary
   };
 
@@ -109,9 +97,9 @@ function MenuCard() {
     titleColor,
     iconButtonBackground,
     iconButtonHoverBackground
-  } = getMenuCardTokens(theme, isDark, hasUpdate, statusColor, versionStatus);
-  const titleAccentColor = hasUpdate ? statusColor : theme.palette.primary.main;
-  const iconButtonColor = hasUpdate ? statusColor : mutedTextColor;
+  } = getMenuCardTokens(theme, isDark, statusColor);
+  const titleAccentColor = theme.palette.primary.main;
+  const iconButtonColor = mutedTextColor;
 
   return (
     <Card
@@ -129,11 +117,7 @@ function MenuCard() {
           position: 'absolute',
           width: 120,
           height: 120,
-          bgcolor: hasUpdate
-            ? alpha(theme.palette.warning.main, isDark ? 0.12 : 0.08)
-            : isDark
-              ? alpha(theme.palette.primary.main, 0.04)
-              : alpha(theme.palette.primary.main, 0.06),
+          bgcolor: isDark ? alpha(theme.palette.primary.main, 0.04) : alpha(theme.palette.primary.main, 0.06),
           borderRadius: '50%',
           top: -72,
           right: -68
@@ -151,12 +135,8 @@ function MenuCard() {
               borderRadius: 2,
               color: titleAccentColor,
               border: '1px solid',
-              borderColor: hasUpdate ? withAlpha(statusColor, isDark ? 0.3 : 0.2) : alpha(theme.palette.primary.main, isDark ? 0.28 : 0.16),
-              bgcolor: hasUpdate
-                ? withAlpha(statusColor, isDark ? 0.16 : 0.1)
-                : isDark
-                  ? alpha(theme.palette.background.paper, 0.16)
-                  : alpha(theme.palette.primary.main, 0.06),
+              borderColor: alpha(theme.palette.primary.main, isDark ? 0.28 : 0.16),
+              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.16) : alpha(theme.palette.primary.main, 0.06),
               boxShadow: 'none',
               flexShrink: 0
             }}

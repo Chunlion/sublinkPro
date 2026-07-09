@@ -135,7 +135,7 @@ See [Contributing Guide](../CONTRIBUTING.md) for details.
 
 ## 📞 Need Help?
 
-- **GitHub Issues**: https://github.com/ZeroDeng01/sublinkPro/issues
+- **GitHub Issues**: https://github.com/Chunlion/sublinkPro/issues
 - **Telegram Group**: See README for link
 - **Skill API**: Use `skill-sublinkpro/` for AI-assisted help
 

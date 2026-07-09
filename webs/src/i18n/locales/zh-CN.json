@@ -3297,22 +3297,10 @@
     "currentSystemVersion": "当前系统版本",
     "githubRepo": "GitHub 仓库",
     "status": {
-      "current": "当前版本",
-      "loading": "检查中...",
-      "unknown": "未知",
-      "update": "有新版本"
+      "current": "当前版本"
     },
     "hint": {
-      "latest": "已是最新版本",
-      "loading": "正在检查最新版本...",
-      "manual": "打开 GitHub 手动查看发布版本",
-      "noUpdate": "暂无更新",
-      "synced": "版本信息已同步",
-      "updateAvailable": "发现新版本"
-    },
-    "actions": {
-      "releases": "查看发布版本",
-      "update": "更新"
+      "customBuild": "custom 分支构建"
     }
   },
   "accessKeys": {
