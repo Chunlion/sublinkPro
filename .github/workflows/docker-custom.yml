@@ -1,0 +1,93 @@
+name: Build Custom Docker Image
+
+on:
+  push:
+    branches:
+      - custom
+  schedule:
+    # GitHub cron uses UTC. This runs at 08:00 Asia/Shanghai.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: custom-docker-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      CUSTOM_BRANCH: custom
+      UPSTREAM_REPOSITORY: ZeroDeng01/sublinkPro
+      UPSTREAM_BRANCH: main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: custom
+          fetch-depth: 0
+
+      - name: Sync upstream into custom
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git" 2>/dev/null || git remote set-url upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch upstream "${UPSTREAM_BRANCH}"
+          git fetch origin "${CUSTOM_BRANCH}"
+          git switch "${CUSTOM_BRANCH}"
+          git config merge.keepCustomWorkflows.name "Keep custom workflow files"
+          git config merge.keepCustomWorkflows.driver true
+          echo ".github/workflows/* merge=keepCustomWorkflows" > .git/info/attributes
+
+          if git merge --ff-only "upstream/${UPSTREAM_BRANCH}"; then
+            echo "Upstream already merged or fast-forwarded."
+          else
+            git merge --no-edit "upstream/${UPSTREAM_BRANCH}"
+          fi
+
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/${CUSTOM_BRANCH}")" ]; then
+            git push origin "HEAD:${CUSTOM_BRANCH}"
+          else
+            echo "No upstream changes to push."
+          fi
+
+      - name: Set image metadata
+        shell: bash
+        run: |
+          image_sha="$(git rev-parse HEAD)"
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sublinkpro" >> "$GITHUB_ENV"
+          echo "IMAGE_SHA=${image_sha}" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=custom-${image_sha:0:12}" >> "$GITHUB_ENV"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:custom
+            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_SHA }}
+          build-args: |
+            VERSION=${{ env.IMAGE_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
