@@ -466,7 +466,7 @@ go run main.go
 
 1. `Dockerfile` - Docker build
 2. `embed_prod.go` - Asset embedding
-3. `.github/workflows/build-release.yml` - CI build
+3. `.github/workflows/docker-custom.yml` - Active custom image build
 4. `main.go` - Startup and serving
 5. `webs/vite.config.js` - Frontend build config
 6. `docs/build-and-deployment.md` - Build documentation
@@ -521,12 +521,17 @@ COPY --from=frontend-builder /app/webs/dist ./static
 
 #### Step 5: Update CI
 
-**File**: `.github/workflows/build-release.yml`
+**File**: `.github/workflows/docker-custom.yml`
 
 ```yaml
-- name: Copy frontend assets
-  run: cp -R webs/dist ./static
+- name: Build and push
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ./Dockerfile
 ```
+
+`build-release.yml` is a disabled manual placeholder in this personal fork; only update it when intentionally restoring a separate release pipeline.
 
 ### Validation Checklist
 

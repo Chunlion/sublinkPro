@@ -83,9 +83,11 @@ sublinkPro/
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/ZeroDeng01/sublinkPro.git
+git clone -b custom https://github.com/Chunlion/sublinkPro.git
 cd sublinkPro
 ```
+
+fork 定制开发与部署统一使用 `custom`。默认 `main` 分支用于承载定时上游同步入口，不是 custom 部署分支。
 
 ### 2. 后端开发
 

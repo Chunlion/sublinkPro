@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-An AI-powered interface for [SublinkPro](https://github.com/ZeroDeng01/sublinkPro) — manage proxy nodes, subscriptions, and shares through natural language.
+An AI-powered interface for [SublinkPro](https://github.com/Chunlion/sublinkPro/tree/custom) — manage proxy nodes, subscriptions, and shares through natural language.
 
 ## What is this?
 
@@ -10,7 +10,7 @@ This skill lets you control your SublinkPro instance by talking to an AI assista
 
 **It's guided by default.** You don't need to know the API, the parameter names, or what already exists in your instance. Just say what you want — even something vague like "I want to add a node" — and the assistant walks you through it step by step: it looks up your existing groups/subscriptions/nodes so you can pick from a list, asks only for what's needed, confirms before making any change, and reports the result in plain language. Not sure where to start? Just ask **"what can I do?"**.
 
-**It can also deploy SublinkPro for you.** Don't have an instance running yet? Ask the assistant to set one up and it guides you through deploying via **docker**, **docker-compose**, or the **install script** — **locally or on a remote host** — then helps you finish first-run setup. So the skill covers both standing up SublinkPro and operating it afterward.
+**It can also deploy SublinkPro for you.** Don't have an instance running yet? Ask the assistant to set one up with the custom GHCR image through **Docker** or **Docker Compose**, locally or on a remote host. This fork does not currently support native one-line installation because it publishes no binary release assets. After deployment, the assistant helps you finish first-run setup.
 
 It is a portable, vendor-neutral skill: the `SKILL.md` + helper-script format works with any AI agent or client that supports skills (for example Claude Code, but not limited to it). Under the hood it just drives the SublinkPro REST API, so anything that can run the helper script can use it.
 

@@ -289,9 +289,10 @@ When instructions conflict, trust these files in order:
 1. `webs/package.json` - Frontend commands and dependencies
 2. `docs/development.md` - Development workflow and structure
 3. `docs/configuration.md` - Config precedence and runtime behavior
-4. `.github/workflows/pr-checks.yml` - PR automated checks
-5. `.github/workflows/build-release.yml` - CI and release build
-6. `Dockerfile` - Production build sequence
+4. `.github/workflows/docker-custom.yml` - Daily upstream sync and custom GHCR build
+5. `.github/workflows/pr-checks.yml` - Branch-specific PR-check policy
+6. `.github/workflows/build-release.yml` - Disabled upstream release placeholder
+7. `Dockerfile` - Production build sequence
 
 **For frontend commands, output paths, and toolchain**: Trust repository files over generic framework assumptions.
 
@@ -331,7 +332,7 @@ See `docs/configuration.md` for:
 See `docs/installation.md` and `skill-sublinkpro/reference/deploy.md` for:
 - Docker installation
 - docker-compose setup
-- One-line script
+- Native-script availability and limitations
 - Update procedures
 
 ## 5. Contribution Workflow
@@ -515,8 +516,8 @@ Start here when changing behavior:
 
 ## 14. Branch Conventions
 
-- `main` - Stable branch
-- `dev` - Development branch (target for PRs)
+- `main` - Default branch and scheduled upstream-sync entry point
+- `custom` - Active fork, deployment, and fork-specific development branch
 - Semantic commit prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
 
 **For complete workflow**: See `CONTRIBUTING.md`

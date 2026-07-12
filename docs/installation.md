@@ -14,13 +14,15 @@ This document explains how to install, update, and uninstall SublinkPro.
 > [!IMPORTANT]
 > `db/`, `template/`, and `logs/` are runtime persistence directories. Keep them during upgrades and migrations.
 
+> [!NOTE]
+> This fork publishes the custom Docker image as `ghcr.io/chunlion/sublinkpro:custom` for `linux/amd64`.
+
 Create `docker-compose.yml`:
 
 ```yaml
 services:
   sublinkpro:
-    # image: zerodeng/sublink-pro:dev # Development version, for trying new features
-    image: zerodeng/sublink-pro # Stable version
+    image: ghcr.io/chunlion/sublinkpro:custom # Custom branch image
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -36,7 +38,7 @@ Optional Sub-Store sidecar for expanded subscription output formats:
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -59,7 +61,7 @@ Keep the Sub-Store service inside the Compose network and do not publish its por
 
 To expose the service through Cloudflare Tunnel, start the instance first, then open **Application Settings -> Cloudflare Tunnel**, enter the token, and start it. When auto connect is enabled, the Tunnel connects when the service starts. See [Cloudflare Tunnel remote access](features/cloudflare-tunnel.md) for the full flow.
 
-The official Docker image includes `cloudflared`. Non Docker deployments need `cloudflared` installed first according to Cloudflare's official documentation.
+The custom Docker image includes `cloudflared`. Non Docker deployments need `cloudflared` installed first according to Cloudflare's official documentation.
 
 Start the service:
 
@@ -72,53 +74,33 @@ docker-compose up -d
 ## 🐳 Run with Docker
 
 <details>
-<summary><b>Stable version</b></summary>
+<summary><b>Custom branch image</b></summary>
 
 ```bash
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \
   -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
-```
-
-</details>
-
-<details>
-<summary><b>Development version, for trying new features</b></summary>
-
-```bash
-docker run --name sublinkpro -p 8000:8000 \
-  -v $PWD/db:/app/db \
-  -v $PWD/template:/app/template \
-  -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro:dev
+  -d ghcr.io/chunlion/sublinkpro:custom
 ```
 
 </details>
 
 ---
 
-## 📝 One Line Install or Update Script
-
-```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/install.sh)"
-```
+## 📝 Native Install or Update Script
 
 > [!NOTE]
-> The install script supports:
-> - **Fresh install**: completes all setup automatically on first install
-> - **Update**: detects an existing install and updates the program while keeping data
-> - **Reinstall**: lets you choose whether to keep existing data
-> - **Restore install**: detects old data and lets you restore it
-> - **Architectures**: Linux x64, Linux ARM64, Linux ARMv7 32-bit, and Linux x86 32-bit
+> This fork currently does not publish GitHub binary release assets. Do not use the one line install/update script for custom branch deployments. Use Docker Compose or Docker with `ghcr.io/chunlion/sublinkpro:custom`.
+>
+> The fork script no longer downloads upstream release assets. It only works after this fork publishes the expected `sublinkPro-linux-*` release files.
 
 ---
 
 ## 🗑️ One Line Uninstall Script
 
 ```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/uninstall.sh)"
+sh -c "$(wget -qO- https://raw.githubusercontent.com/Chunlion/sublinkPro/refs/heads/custom/uninstall.sh)"
 ```
 
 > [!NOTE]
@@ -128,18 +110,9 @@ sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/
 
 ## 🔄 Project Updates
 
-### 📝 Update with the one line script
+### 📝 Native script update
 
-If you installed with the one line script, run the install script again to update:
-
-```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/install.sh)"
-```
-
-The script detects the installed version and provides these options:
-
-- **Update program**: keep all data and update program files only
-- **Reinstall**: choose whether to keep data
+Native script updates are not a supported custom branch update path until this fork publishes binary release assets.
 
 ### 📦 Manual Docker Compose update
 
@@ -165,14 +138,14 @@ docker stop sublinkpro
 docker rm sublinkpro
 
 # Pull the latest image
-docker pull zerodeng/sublink-pro
+docker pull ghcr.io/chunlion/sublinkpro:custom
 
 # Start the container again with the same parameters used during installation
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \
   -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
+  -d ghcr.io/chunlion/sublinkpro:custom
 
 # Optional: clean old images
 docker image prune -f
@@ -208,7 +181,7 @@ Add the Watchtower service to your `docker-compose.yml`:
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"

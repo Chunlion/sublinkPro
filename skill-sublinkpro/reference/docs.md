@@ -23,10 +23,10 @@ language — summarize and quote the doc, don't invent details.
 ## URL patterns
 
 - **Raw (fetch this to read content):**
-  `https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/main/<path>`
+  `https://raw.githubusercontent.com/Chunlion/sublinkPro/refs/heads/custom/<path>`
 - **Human page (give this to the user):**
-  `https://github.com/ZeroDeng01/sublinkPro/blob/main/<path>`
-- **Repo root:** `https://github.com/ZeroDeng01/sublinkPro`
+  `https://github.com/Chunlion/sublinkPro/blob/custom/<path>`
+- **Repo root:** `https://github.com/Chunlion/sublinkPro/tree/custom`
 
 Every doc is maintained in **both languages**: English at `<path>.md`, Simplified
 Chinese at the same path with a `.zh-CN.md` suffix (e.g. `docs/installation.md` →
@@ -44,7 +44,7 @@ suffix for Chinese.
 ### Install, configure, deploy
 | User asks about | Doc path |
 |---|---|
-| Install methods (Docker, docker-compose, one-line script), updates, Watchtower auto-update | `docs/installation.md` |
+| Docker and docker-compose installation, custom image updates, uninstall, native-script limitations, Watchtower auto-update | `docs/installation.md` |
 | Environment variables, command-line flags, config precedence, CAPTCHA modes | `docs/configuration.md` |
 | Build process, production build, Docker build, CI/CD, troubleshooting | `docs/build-and-deployment.md` |
 | Security best practices, default credentials, sensitive config, MFA, Docker security | `docs/security-guidelines.md` |
@@ -88,7 +88,7 @@ suffix for Chinese.
 
 - This map lists every doc that existed when written. If a fetch 404s, the doc may
   have been renamed/moved — fall back to the repo root or `README.md`'s
-  Documentation index (`https://github.com/ZeroDeng01/sublinkPro#-documentation`)
+  Documentation index (`https://github.com/Chunlion/sublinkPro/tree/custom#-documentation`)
   to find the current path, and tell the user it moved. Don't guess a new path.
 - These docs describe the **project** (install, features, configuration). For
   *operating a live instance* via the REST API, use `reference/api.md`. For

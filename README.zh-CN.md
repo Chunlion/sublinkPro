@@ -4,32 +4,19 @@
   **✨ 强大的代理订阅管理与转换工具 ✨**
 
   <p>
-    <img src="https://img.shields.io/github/go-mod/go-version/ZeroDeng01/sublinkPro?style=flat-square&logo=go&logoColor=white" alt="Go Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/react?filename=webs%2Fpackage.json&style=flat-square&logo=react&logoColor=white&color=61DAFB" alt="React Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/@mui/material?filename=webs%2Fpackage.json&style=flat-square&logo=mui&logoColor=white&label=MUI&color=007FFF" alt="MUI Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/vite?filename=webs%2Fpackage.json&style=flat-square&logo=vite&logoColor=white&color=646CFF" alt="Vite Version"/>
+    <img src="https://img.shields.io/github/go-mod/go-version/Chunlion/sublinkPro?style=flat-square&logo=go&logoColor=white" alt="Go Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/react?filename=webs%2Fpackage.json&style=flat-square&logo=react&logoColor=white&color=61DAFB" alt="React Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/@mui/material?filename=webs%2Fpackage.json&style=flat-square&logo=mui&logoColor=white&label=MUI&color=007FFF" alt="MUI Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/vite?filename=webs%2Fpackage.json&style=flat-square&logo=vite&logoColor=white&color=646CFF" alt="Vite Version"/>
   </p>
   <p>
-    <img src="https://img.shields.io/github/v/release/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Latest" alt="Latest Release"/>
-    <img src="https://img.shields.io/github/release-date/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Release%20Date" alt="Release Date"/>
+    <img src="https://img.shields.io/github/stars/Chunlion/sublinkPro?style=flat-square&logo=github&label=Stars" alt="GitHub Stars"/>
+    <img src="https://img.shields.io/github/forks/Chunlion/sublinkPro?style=flat-square&logo=github&label=Forks" alt="GitHub Forks"/>
+    <img src="https://img.shields.io/github/license/Chunlion/sublinkPro?style=flat-square&label=License" alt="License"/>
   </p>
   <p>
-    <img src="https://img.shields.io/docker/v/zerodeng/sublink-pro/latest?style=flat-square&logo=docker&logoColor=white&label=Docker%20Stable" alt="Docker Stable Version"/>
-    <img src="https://img.shields.io/docker/pulls/zerodeng/sublink-pro?style=flat-square&logo=docker&logoColor=white&label=Docker%20Pulls" alt="Docker Pulls"/>
-    <img src="https://img.shields.io/docker/image-size/zerodeng/sublink-pro/latest?style=flat-square&logo=docker&logoColor=white&label=Image%20Size" alt="Docker Image Size"/>
-  </p>
-  <p>
-    <img src="https://img.shields.io/github/stars/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Stars" alt="GitHub Stars"/>
-    <img src="https://img.shields.io/github/forks/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Forks" alt="GitHub Forks"/>
-    <img src="https://img.shields.io/github/issues/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Issues" alt="GitHub Issues"/>
-    <img src="https://img.shields.io/github/license/ZeroDeng01/sublinkPro?style=flat-square&label=License" alt="License"/>
-  </p>
-  <p>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/issues">
-      <img src="https://img.shields.io/badge/问题反馈-Issues-blue?style=flat-square&logo=github" alt="Issues"/>
-    </a>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/releases">
-      <img src="https://img.shields.io/badge/版本下载-Releases-green?style=flat-square&logo=github" alt="Releases"/>
+    <a href="https://github.com/Chunlion/sublinkPro/pkgs/container/sublinkpro">
+      <img src="https://img.shields.io/badge/GHCR-custom-green?style=flat-square&logo=github" alt="GHCR Custom Image"/>
     </a>
   </p>
 </div>
@@ -88,10 +75,13 @@
 
 创建 `docker-compose.yml`：
 
+> [!NOTE]
+> custom GHCR 镜像当前仅支持 `linux/amd64`。
+
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -116,7 +106,7 @@ docker-compose up -d
 > 即使配置了 `SUBLINK_WEB_BASE_PATH` 隐藏管理界面入口，API (`/api/*`) 与订阅/分享访问路径 (`/c/*`) 仍保持在根路径下，这是本项目特有的前后端集成行为。
 
 > [!TIP]
-> 更多安装方式（Docker、一键脚本、更新升级等）请参阅 [📦 安装部署指南](docs/installation.zh-CN.md)
+> 更多安装方式（Docker、custom 镜像更新、卸载等）请参阅 [📦 安装部署指南](docs/installation.zh-CN.md)
 
 > [!TIP]
 > Docker 镜像已内置 `cloudflared`。登录后可在 `用户中心 -> Cloudflare Tunnel` 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。
@@ -149,7 +139,7 @@ docker-compose up -d
 
 | 文档 | 说明 |
 |:---|:---|
-| [📦 安装部署](docs/installation.zh-CN.md) | Docker、一键脚本、更新升级、Watchtower 自动更新 |
+| [📦 安装部署](docs/installation.zh-CN.md) | Docker、custom 镜像更新、卸载、Watchtower 自动更新 |
 | [⚙️ 配置说明](docs/configuration.zh-CN.md) | 环境变量、命令行参数、验证码配置 |
 
 ### ✨ 功能详解
@@ -213,9 +203,9 @@ docker-compose up -d
 
 <div align="center">
 
-[//]: # (  <img src="https://repobeez.abhijithganesh.com/api/insert/ZeroDeng01/sublinkPro" alt="Repobeez" height="0" width="0" style="display: none"/>)
+[//]: # (  <img src="https://repobeez.abhijithganesh.com/api/insert/Chunlion/sublinkPro" alt="Repobeez" height="0" width="0" style="display: none"/>)
   
-  ![Star History Chart](https://api.star-history.com/svg?repos=ZeroDeng01/sublinkPro&type=Date)
+  ![Star History Chart](https://api.star-history.com/svg?repos=Chunlion/sublinkPro&type=Date)
 </div>
 
 ---
@@ -225,13 +215,12 @@ docker-compose up -d
 如果这个项目对您有帮助，欢迎：
 
 - ⭐ **Star** 这个项目表示支持
-- 🐛 提交 [Issue](https://github.com/ZeroDeng01/sublinkPro/issues) 反馈问题或建议
 - 🔧 提交 Pull Request 贡献代码
 - 📖 完善文档和使用教程
 
 ### 🌟 优质推荐
 
-如果需要购买服务器，可以通过以下链接支持维护者。请注意，点击购买可能会为维护者带来佣金奖励；具体价格、活动资格、线路表现与续费规则请以官方页面为准。
+如果需要购买服务器，可以通过以下链接支持原项目维护者。请注意，点击购买可能会为原项目维护者带来佣金奖励；具体价格、活动资格、线路表现与续费规则请以官方页面为准。
 
 - **[BandwagonHost (搬瓦工)](https://bandwagonhost.com/aff.php?aff=19245)**：精品线路，提供多机房与 CN2 GIA 等线路方案，适合优质线路机。也可以当作稳定落地机结合打野节点使用。亮点：多机房 VPS 方案、可关注 CN2 GIA 优化线路、高质量线路机。
 - **[Vultr](https://www.vultr.com/?ref=8055869)**：海量机房可选，按小时结算收费，IP随时更换、地区可随时更换，最低$2.5/月，适合建站和 AI 服务托管等，也可作为线路机和落地机使用。亮点：多机房地区可选、按小时计费、低价稳定、有纯 V6 机器。

@@ -159,47 +159,18 @@ docker-compose up -d
 
 ## 🔄 CI/CD Pipeline
 
-### GitHub Actions Workflow
+### Personal Fork Workflows
 
-The repository uses `.github/workflows/build-release.yml` for automated builds.
+- `.github/workflows/docker-custom.yml` is the active workflow. Pushes to `custom` build the GHCR image. Its schedule runs from the default `main` branch every day at `08:00 Asia/Shanghai`; scheduled and manual runs first merge `ZeroDeng01/sublinkPro:main` into `custom`, then build the synchronized commit.
+- `.github/workflows/build-release.yml` is a manual placeholder. This fork does not use the upstream Docker Hub or GitHub binary release pipeline.
 
-#### Workflow Steps
+The sync job merges the external upstream branch, not `origin/main`. Fork-specific commits made only on `main` are not copied to `custom`: keep product changes on `custom`; when user-facing docs are mirrored on `main` for default-branch visibility, apply the same documentation change to `custom` explicitly. Scheduler and policy files may also need copies on `main` because GitHub evaluates them from the default branch.
 
-1. **Setup**:
-   - Checkout code
-   - Setup Node.js 22
-   - Setup Go 1.26.4
-   - Enable corepack
-
-2. **Frontend Build**:
-   ```bash
-   cd webs
-   yarn install --immutable
-   yarn run lint
-   yarn run build
-   ```
-
-3. **Backend Validation**:
-   ```bash
-   gofmt -w .
-   golangci-lint run
-   go test ./...
-   ```
-
-4. **Production Build**:
-   ```bash
-   cp -R webs/dist ./static
-   CGO_ENABLED=0 go build -tags=prod -ldflags="-s -w" -o sublinkPro
-   ```
-
-5. **Release** (on tag):
-   - Create GitHub release
-   - Upload binary artifacts
-   - Push Docker images
+The active image build uses `Dockerfile`, publishes `linux/amd64`, and tags the result with both `custom` and the synchronized commit SHA.
 
 ### PR Checks
 
-`.github/workflows/pr-checks.yml` runs on PR open/reopen/ready-for-review:
+The `custom` branch keeps `.github/workflows/pr-checks.yml` as a manual placeholder. Fork-specific PRs do not run automatic checks, so execute these commands locally:
 
 **Backend checks**:
 - `golangci-lint run`
@@ -208,8 +179,6 @@ The repository uses `.github/workflows/build-release.yml` for automated builds.
 **Frontend checks**:
 - `yarn run lint`
 - `yarn run build`
-
-To manually re-trigger checks, comment `/recheck` on the PR.
 
 ---
 
@@ -230,8 +199,10 @@ Production builds generate:
 ### Docker Images
 
 Released images:
-- `zerodeng/sublink-pro:latest`
-- `zerodeng/sublink-pro:v{version}`
+- `ghcr.io/chunlion/sublinkpro:custom`
+- `ghcr.io/chunlion/sublinkpro:<commit-sha>`
+
+This fork does not currently publish `latest`, versioned Docker Hub images, or native binary release assets.
 
 ---
 

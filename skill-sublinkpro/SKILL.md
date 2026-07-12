@@ -109,10 +109,10 @@ When the user asks how a feature works, how to configure something, what a featu
 
 If the documentation can't answer the user's question, or they've tried the documented solution and it still doesn't work, guide them to escalate:
 
-- **Submit a GitHub issue:** [https://github.com/ZeroDeng01/sublinkPro/issues](https://github.com/ZeroDeng01/sublinkPro/issues) — for bug reports, feature requests, or questions the docs don't cover.
+- **Repository support:** This fork does not expose a GitHub issue tracker. Use the linked documentation and report only through a channel explicitly enabled by the repository owner.
 - **Contact the author via Telegram:** [https://t.me/SublinkPro_ChatMeBot](https://t.me/SublinkPro_ChatMeBot) — for real-time help or urgent issues.
 
-Phrase it like: "The docs cover X but your specific case (Y) isn't documented. I'd recommend opening a GitHub issue at [link] or reaching out to the author on Telegram at [link] — they can help diagnose this."
+Phrase it like: "The docs cover X but your specific case (Y) isn't documented. This fork has no issue tracker; reach out through the documented Telegram support link for further diagnosis."
 
 ---
 
@@ -282,8 +282,8 @@ Full command reference: `reference/deploy.md`. Read it before running anything �
 1. **Confirm intent & location.** Are we setting up a *new* SublinkPro instance? Ask **local or remote host**. If remote, ask which mode:
    - *Mode 1 — agent runs it:* the user lets you run commands on the remote box over their existing SSH access (`ssh user@host '...'`). Only do this after they confirm the host and grant permission for each remote command.
    - *Mode 2 — user runs it:* you generate the exact commands / compose file and the user runs them on the host themselves. Default to this if unsure.
-2. **Detect the environment.** Check what's available before recommending: `docker --version`, `docker compose version` (or `docker-compose version`). For the install script, note it needs root and is interactive.
-3. **Pick a method** — recommend **docker-compose** for most users (easy to update and re-run). Alternatives: plain `docker run`, or the one-line install script (binary + systemd/OpenRC; root; interactive menu — hand it over, don't pipe answers).
+2. **Detect the environment.** Check what's available before recommending: `docker --version`, `docker compose version` (or `docker-compose version`).
+3. **Pick a method** — recommend **docker-compose** for most users (easy to update and re-run), with plain `docker run` as the alternative. Do not offer the native one-line install script for this fork until it publishes binary release assets.
 4. **Offer configuration as one short, skippable step.** Most users want defaults — lead with "I can use sensible defaults, or set a few options; want to customize anything?". If they want to customize, walk the common ones in plain language (host port, admin password, database, captcha, hidden base path) and map them to the right env vars yourself. The full authoritative variable list and the `config.yaml` alternative are in `reference/deploy.md` ("Configuration: environment variables & config file") — consult it, never invent a variable. Only add the env vars the user actually chose; everything else stays default. For multi-instance/migration setups, remember `SUBLINK_JWT_SECRET` + `SUBLINK_API_ENCRYPTION_KEY` must be set and identical across instances.
 5. **Confirm** the exact command(s) or compose file in plain language before running or handing over. For remote Mode 1, show the full `ssh`/`scp` command you're about to run and get a yes.
 6. **Run or hand over** per the chosen mode.

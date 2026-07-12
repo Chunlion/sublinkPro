@@ -4,19 +4,19 @@ Thank you for your interest in contributing to SublinkPro! This guide will help 
 
 ## Quick Start
 
-1. **Fork and clone** the repository
+1. **Clone** the repository's `custom` branch
 2. **Set up your environment** - see [Development Guide](docs/development.md)
-3. **Create a branch** from `dev` for your changes
+3. **Create a branch** from `custom` for your changes
 4. **Make your changes** following our guidelines below
 5. **Test your changes** - see [Testing](#testing)
-6. **Submit a pull request** to the `dev` branch
+6. **Submit a pull request** to the `custom` branch
 
 ## Branch and Commit Conventions
 
 ### Branches
 
-- `main` - Stable release branch
-- `dev` - Development branch (target for PRs)
+- `main` - Default branch and scheduled upstream-sync entry point
+- `custom` - Active fork, deployment, and fork-specific development branch
 - `feature/*` - Feature branches
 - `fix/*` - Bug fix branches
 
@@ -129,9 +129,9 @@ See [Internationalization Guide](docs/internationalization.md) for complete requ
 
 ## Pull Request Process
 
-1. **Ensure your PR targets `dev`** (not `main`)
+1. **Ensure fork-specific PRs target `custom`** (not `main`)
 2. **Fill out the PR template** completely
-3. **Link related issues** if applicable
+3. **Link related context** if applicable
 4. **Verify all checks pass**:
    - Frontend: `yarn run lint` and `yarn run build`
    - Backend: `golangci-lint run` and `go test ./...`
@@ -140,12 +140,10 @@ See [Internationalization Guide](docs/internationalization.md) for complete requ
 
 ### PR Checks
 
-Automated checks run when PRs are opened, reopened, or marked ready for review:
+The `custom` branch keeps `.github/workflows/pr-checks.yml` as a manual placeholder, so fork-specific PRs do not receive automatic checks. Run these checks locally before review:
 
 - Backend: `golangci-lint` and `go test ./...`
 - Frontend: `yarn run lint` and `yarn run build`
-
-To manually re-trigger checks, comment `/recheck` on your PR.
 
 ## Documentation Updates
 
@@ -173,8 +171,6 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
 ## Getting Help
 
 - 📖 Read the [Development Guide](docs/development.md)
-- 🐛 Report bugs via [GitHub Issues](https://github.com/zerodeng/sublink-pro/issues)
-- 💬 Join discussions on [GitHub Discussions](https://github.com/zerodeng/sublink-pro/discussions)
 - 📱 Chat on Telegram: [SublinkPro Community](https://t.me/sublinkpro)
 
 ## License

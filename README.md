@@ -4,32 +4,19 @@
   **✨ Powerful proxy subscription management and conversion ✨**
 
   <p>
-    <img src="https://img.shields.io/github/go-mod/go-version/ZeroDeng01/sublinkPro?style=flat-square&logo=go&logoColor=white" alt="Go Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/react?filename=webs%2Fpackage.json&style=flat-square&logo=react&logoColor=white&color=61DAFB" alt="React Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/@mui/material?filename=webs%2Fpackage.json&style=flat-square&logo=mui&logoColor=white&label=MUI&color=007FFF" alt="MUI Version"/>
-    <img src="https://img.shields.io/github/package-json/dependency-version/ZeroDeng01/sublinkPro/vite?filename=webs%2Fpackage.json&style=flat-square&logo=vite&logoColor=white&color=646CFF" alt="Vite Version"/>
+    <img src="https://img.shields.io/github/go-mod/go-version/Chunlion/sublinkPro?style=flat-square&logo=go&logoColor=white" alt="Go Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/react?filename=webs%2Fpackage.json&style=flat-square&logo=react&logoColor=white&color=61DAFB" alt="React Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/@mui/material?filename=webs%2Fpackage.json&style=flat-square&logo=mui&logoColor=white&label=MUI&color=007FFF" alt="MUI Version"/>
+    <img src="https://img.shields.io/github/package-json/dependency-version/Chunlion/sublinkPro/vite?filename=webs%2Fpackage.json&style=flat-square&logo=vite&logoColor=white&color=646CFF" alt="Vite Version"/>
   </p>
   <p>
-    <img src="https://img.shields.io/github/v/release/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Latest" alt="Latest Release"/>
-    <img src="https://img.shields.io/github/release-date/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Release%20Date" alt="Release Date"/>
+    <img src="https://img.shields.io/github/stars/Chunlion/sublinkPro?style=flat-square&logo=github&label=Stars" alt="GitHub Stars"/>
+    <img src="https://img.shields.io/github/forks/Chunlion/sublinkPro?style=flat-square&logo=github&label=Forks" alt="GitHub Forks"/>
+    <img src="https://img.shields.io/github/license/Chunlion/sublinkPro?style=flat-square&label=License" alt="License"/>
   </p>
   <p>
-    <img src="https://img.shields.io/docker/v/zerodeng/sublink-pro/latest?style=flat-square&logo=docker&logoColor=white&label=Docker%20Stable" alt="Docker Stable Version"/>
-    <img src="https://img.shields.io/docker/pulls/zerodeng/sublink-pro?style=flat-square&logo=docker&logoColor=white&label=Docker%20Pulls" alt="Docker Pulls"/>
-    <img src="https://img.shields.io/docker/image-size/zerodeng/sublink-pro/latest?style=flat-square&logo=docker&logoColor=white&label=Image%20Size" alt="Docker Image Size"/>
-  </p>
-  <p>
-    <img src="https://img.shields.io/github/stars/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Stars" alt="GitHub Stars"/>
-    <img src="https://img.shields.io/github/forks/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Forks" alt="GitHub Forks"/>
-    <img src="https://img.shields.io/github/issues/ZeroDeng01/sublinkPro?style=flat-square&logo=github&label=Issues" alt="GitHub Issues"/>
-    <img src="https://img.shields.io/github/license/ZeroDeng01/sublinkPro?style=flat-square&label=License" alt="License"/>
-  </p>
-  <p>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/issues">
-      <img src="https://img.shields.io/badge/Feedback-Issues-blue?style=flat-square&logo=github" alt="Issues"/>
-    </a>
-    <a href="https://github.com/ZeroDeng01/sublinkPro/releases">
-      <img src="https://img.shields.io/badge/Download-Releases-green?style=flat-square&logo=github" alt="Releases"/>
+    <a href="https://github.com/Chunlion/sublinkPro/pkgs/container/sublinkpro">
+      <img src="https://img.shields.io/badge/GHCR-custom-green?style=flat-square&logo=github" alt="GHCR Custom Image"/>
     </a>
   </p>
 </div>
@@ -88,10 +75,13 @@ English | [简体中文](README.zh-CN.md)
 
 Create `docker-compose.yml`:
 
+> [!NOTE]
+> The custom GHCR image currently supports `linux/amd64` only.
+
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -116,7 +106,7 @@ SQLite is used by default. To switch to MySQL or PostgreSQL, set the database co
 > Even when `SUBLINK_WEB_BASE_PATH` is configured to hide the admin UI entry, API paths (`/api/*`) and subscription or share paths (`/c/*`) stay at the root path. This is a project specific frontend and backend integration rule.
 
 > [!TIP]
-> For more install methods, including Docker, one line scripts, updates, and upgrades, see the [📦 Installation Guide](docs/installation.md).
+> For more install methods, including Docker, custom image updates, and uninstall, see the [📦 Installation Guide](docs/installation.md).
 
 > [!TIP]
 > The Docker image includes `cloudflared`. After signing in, open `User Center -> Cloudflare Tunnel`, enter the token, and start it. When auto connect is enabled, the Tunnel connects when the service starts.
@@ -149,7 +139,7 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 
 | Document | Description |
 |:---|:---|
-| [📦 Installation](docs/installation.md) | Docker, one line scripts, updates, Watchtower automatic updates |
+| [📦 Installation](docs/installation.md) | Docker, custom image updates, uninstall, Watchtower automatic updates |
 | [⚙️ Configuration](docs/configuration.md) | Environment variables, command line flags, CAPTCHA configuration |
 
 ### ✨ Feature Guides
@@ -213,9 +203,9 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 
 <div align="center">
 
-[//]: # (  <img src="https://repobeez.abhijithganesh.com/api/insert/ZeroDeng01/sublinkPro" alt="Repobeez" height="0" width="0" style="display: none"/>)
+[//]: # (  <img src="https://repobeez.abhijithganesh.com/api/insert/Chunlion/sublinkPro" alt="Repobeez" height="0" width="0" style="display: none"/>)
   
-  ![Star History Chart](https://api.star-history.com/svg?repos=ZeroDeng01/sublinkPro&type=Date)
+  ![Star History Chart](https://api.star-history.com/svg?repos=Chunlion/sublinkPro&type=Date)
 </div>
 
 ---
@@ -225,13 +215,12 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 If this project helps you, you are welcome to:
 
 - ⭐ Star the project
-- 🐛 Open an [Issue](https://github.com/ZeroDeng01/sublinkPro/issues) for bugs or suggestions
 - 🔧 Submit a Pull Request
 - 📖 Improve the docs and tutorials
 
 ### 🌟 Recommended services
 
-If you need to buy a server, you can support the maintainer through the links below. Purchases through these links may provide commission rewards to the maintainer. Check official pages for exact pricing, promotion eligibility, network performance, and renewal rules.
+If you need to buy a server, you can support the original project maintainer through the links below. Purchases through these links may provide commission rewards to the original maintainer. Check official pages for exact pricing, promotion eligibility, network performance, and renewal rules.
 
 - **[BandwagonHost](https://bandwagonhost.com/aff.php?aff=19245)**: premium routes, multiple data centers, and CN2 GIA options. Good for high quality route servers, or as a stable landing server with other nodes. Highlights: many VPS locations, CN2 GIA optimized routes, quality route machines.
 - **[Vultr](https://www.vultr.com/?ref=8055869)**: many regions, hourly billing, IP and region changes, starting at $2.5 per month. Good for websites, AI service hosting, route servers, and landing servers. Highlights: many regions, hourly billing, low price, stable service, IPv6 only machines.

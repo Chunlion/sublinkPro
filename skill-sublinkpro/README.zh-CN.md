@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md) | [English](README.md)
 
-一个面向 [SublinkPro](https://github.com/ZeroDeng01/sublinkPro) 的 AI 操作接口——通过自然语言管理代理节点、订阅与分享。
+一个面向 [SublinkPro](https://github.com/Chunlion/sublinkPro/tree/custom) 的 AI 操作接口——通过自然语言管理代理节点、订阅与分享。
 
 ## 这是什么？
 
@@ -12,7 +12,7 @@
 
 它采用可移植、与厂商无关的 `SKILL.md` + 助手脚本格式，任何支持技能的 AI agent 或客户端都能使用（例如 Claude Code，但不限于此）。底层只是调用 SublinkPro 的 REST API，因此凡是能运行该助手脚本的工具都能用它。
 
-**它还能帮你部署 SublinkPro 本身。** 如果你还没有运行中的实例，可以让 AI 助手引导你用 docker、docker-compose 或一键安装脚本进行部署，支持本地或远程主机，全程对话式完成；部署后再引导你登录、改密码、创建 API Key，无缝衔接到日常操作。
+**它还能帮你部署 SublinkPro 本身。** 如果你还没有运行中的实例，可以让 AI 助手使用 custom GHCR 镜像，通过 Docker 或 Docker Compose 在本地或远程主机完成部署。此 fork 当前没有二进制 release 资产，不支持原生一键安装。部署后再引导你登录、改密码和创建 API Key。
 
 它是除 Web 界面之外，使用本系统的**另一种方式**。
 

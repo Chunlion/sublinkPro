@@ -14,13 +14,15 @@
 > [!IMPORTANT]
 > `db/`、`template/`、`logs/` 属于运行时持久化目录，请在升级和迁移时保留。
 
+> [!NOTE]
+> 此 fork 将 custom Docker 镜像发布为 `ghcr.io/chunlion/sublinkpro:custom`，平台为 `linux/amd64`。
+
 创建 `docker-compose.yml` 文件：
 
 ```yaml
 services:
   sublinkpro:
-    # image: zerodeng/sublink-pro:dev # 开发版（功能尝鲜使用）
-    image: zerodeng/sublink-pro # 稳定版
+    image: ghcr.io/chunlion/sublinkpro:custom # custom 分支镜像
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -36,7 +38,7 @@ services:
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -59,7 +61,7 @@ services:
 
 如需通过 Cloudflare Tunnel 暴露服务，可在启动后进入 **用户中心 -> Cloudflare Tunnel** 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。完整步骤见 [Cloudflare Tunnel 远程访问](features/cloudflare-tunnel.zh-CN.md)。
 
-官方 Docker 镜像已内置 `cloudflared`，非 Docker 部署则需要先按 Cloudflare 官方文档安装 `cloudflared`。
+custom Docker 镜像已内置 `cloudflared`，非 Docker 部署则需要先按 Cloudflare 官方文档安装 `cloudflared`。
 
 启动服务：
 
@@ -72,53 +74,33 @@ docker-compose up -d
 ## 🐳 Docker 运行
 
 <details>
-<summary><b>稳定版</b></summary>
+<summary><b>custom 分支镜像</b></summary>
 
 ```bash
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \
   -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
-```
-
-</details>
-
-<details>
-<summary><b>开发版（功能尝鲜）</b></summary>
-
-```bash
-docker run --name sublinkpro -p 8000:8000 \
-  -v $PWD/db:/app/db \
-  -v $PWD/template:/app/template \
-  -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro:dev
+  -d ghcr.io/chunlion/sublinkpro:custom
 ```
 
 </details>
 
 ---
 
-## 📝 一键安装/更新脚本
-
-```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/install.sh)"
-```
+## 📝 原生安装/更新脚本
 
 > [!NOTE]
-> 安装脚本支持以下功能：
-> - **全新安装**：首次安装时自动完成所有配置
-> - **更新程序**：检测到已安装时，可选择更新（保留所有数据）
-> - **重新安装**：可选择是否保留现有数据
-> - **恢复安装**：检测到旧数据时，可选择恢复安装
-> - **支持架构**：Linux x64、Linux ARM64、Linux ARMv7 32 位、Linux x86 32 位
+> 当前 fork 暂未发布 GitHub 二进制 release 资产。custom 分支部署不要使用一键安装/更新脚本，请使用 Docker Compose 或 Docker 镜像 `ghcr.io/chunlion/sublinkpro:custom`。
+>
+> fork 内的安装脚本已不再下载 upstream release 资产。只有当此 fork 发布预期的 `sublinkPro-linux-*` release 文件后才可使用。
 
 ---
 
 ## 🗑️ 一键卸载脚本
 
 ```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/uninstall.sh)"
+sh -c "$(wget -qO- https://raw.githubusercontent.com/Chunlion/sublinkPro/refs/heads/custom/uninstall.sh)"
 ```
 
 > [!NOTE]
@@ -128,17 +110,9 @@ sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/
 
 ## 🔄 项目更新
 
-### 📝 一键脚本更新
+### 📝 原生脚本更新
 
-如果您使用一键脚本安装，可以再次运行安装脚本进行更新：
-
-```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/install.sh)"
-```
-
-脚本会自动检测已安装的版本，并提供以下选项：
-- **更新程序**：保留所有数据，仅更新程序文件
-- **重新安装**：可选择是否保留数据
+在此 fork 发布二进制 release 资产前，原生脚本更新不是 custom 分支支持的更新路径。
 
 ### 📦 Docker Compose 手动更新
 
@@ -164,14 +138,14 @@ docker stop sublinkpro
 docker rm sublinkpro
 
 # 拉取最新镜像
-docker pull zerodeng/sublink-pro
+docker pull ghcr.io/chunlion/sublinkpro:custom
 
 # 重新启动容器（使用与安装时相同的参数）
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \
   -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
+  -d ghcr.io/chunlion/sublinkpro:custom
 
 # （可选）清理旧镜像
 docker image prune -f
@@ -207,7 +181,7 @@ docker run -d \
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"

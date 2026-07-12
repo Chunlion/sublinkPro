@@ -159,47 +159,18 @@ docker-compose up -d
 
 ## 🔄 CI/CD 流水线
 
-### GitHub Actions 工作流
+### 个人 fork 工作流
 
-仓库使用 `.github/workflows/build-release.yml` 进行自动化构建。
+- `.github/workflows/docker-custom.yml` 是当前启用的工作流。推送到 `custom` 时会构建 GHCR 镜像；定时任务从默认 `main` 分支触发，每天北京时间 `08:00` 运行。定时或手动运行时，会先把 `ZeroDeng01/sublinkPro:main` 合并到 `custom`，再构建同步后的提交。
+- `.github/workflows/build-release.yml` 仅保留手动占位。此 fork 不使用上游的 Docker Hub 与 GitHub 二进制 release 流程。
 
-#### 工作流步骤
+同步任务合并的是外部 upstream 分支，不是 `origin/main`。只提交到 `main` 的 fork 定制改动不会自动进入 `custom`：产品改动应维护在 `custom`；面向用户的文档如需在默认分支展示，可以同步放到 `main`，但必须显式将同一文档改动应用到 `custom`。GitHub 要求从默认分支读取的调度或策略文件也可能需要在 `main` 保留副本。
 
-1. **设置**：
-   - 检出代码
-   - 设置 Node.js 22
-   - 设置 Go 1.26.4
-   - 启用 corepack
-
-2. **前端构建**：
-   ```bash
-   cd webs
-   yarn install --immutable
-   yarn run lint
-   yarn run build
-   ```
-
-3. **后端验证**：
-   ```bash
-   gofmt -w .
-   golangci-lint run
-   go test ./...
-   ```
-
-4. **生产构建**：
-   ```bash
-   cp -R webs/dist ./static
-   CGO_ENABLED=0 go build -tags=prod -ldflags="-s -w" -o sublinkPro
-   ```
-
-5. **发布**（打 tag 时）：
-   - 创建 GitHub release
-   - 上传二进制产物
-   - 推送 Docker 镜像
+当前镜像构建使用 `Dockerfile`，发布 `linux/amd64`，并同时生成 `custom` 与同步提交 SHA 两种标签。
 
 ### PR 检查
 
-`.github/workflows/pr-checks.yml` 在 PR 打开/重新打开/标记为 ready-for-review 时运行：
+`custom` 分支中的 `.github/workflows/pr-checks.yml` 是手动占位。fork 定制 PR 不会自动运行检查，因此请在本地执行：
 
 **后端检查**：
 - `golangci-lint run`
@@ -208,8 +179,6 @@ docker-compose up -d
 **前端检查**：
 - `yarn run lint`
 - `yarn run build`
-
-要手动重新触发检查，在 PR 中评论 `/recheck`。
 
 ---
 
@@ -230,8 +199,10 @@ docker-compose up -d
 ### Docker 镜像
 
 发布的镜像：
-- `zerodeng/sublink-pro:latest`
-- `zerodeng/sublink-pro:v{version}`
+- `ghcr.io/chunlion/sublinkpro:custom`
+- `ghcr.io/chunlion/sublinkpro:<commit-sha>`
+
+此 fork 当前不发布 `latest`、Docker Hub 版本标签或原生二进制 release 资产。
 
 ---
 

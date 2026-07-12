@@ -66,7 +66,7 @@ The development workflow ensures that every code change goes through consistent 
 │  Phase 4: Commit & Pull Request                              │
 │  - Review git staging (only intended files)                  │
 │  - Commit with semantic message                              │
-│  - Push to dev branch                                        │
+│  - Push to custom branch                                     │
 │  - Create pull request with complete description             │
 └─────────────────────────────────────────────────────────────┘
                               ↓
@@ -74,7 +74,7 @@ The development workflow ensures that every code change goes through consistent 
 │  Phase 5: Review & Merge                                     │
 │  - Automated PR checks run                                   │
 │  - Address review feedback                                   │
-│  - Merge to dev after approval                               │
+│  - Merge to custom after approval                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -351,7 +351,7 @@ git commit -m "feat(scope): description"
 
 ### Creating pull request
 
-**Target branch**: Always target `dev` (not `main`)
+**Target branch**: Fork-specific changes target `custom` (not `main`)
 
 **PR description should include**:
 
@@ -421,7 +421,7 @@ Before/After screenshots
 ### Merge
 
 After approval and passing checks:
-- Merge to `dev` branch
+- Merge to `custom` branch
 - Delete feature branch (if desired)
 - Monitor for any issues
 

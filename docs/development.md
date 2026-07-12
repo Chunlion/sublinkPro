@@ -83,9 +83,11 @@ Examples:
 ### 1. Clone the project
 
 ```bash
-git clone https://github.com/ZeroDeng01/sublinkPro.git
+git clone -b custom https://github.com/Chunlion/sublinkPro.git
 cd sublinkPro
 ```
+
+Use `custom` for fork-specific development and deployment. The default `main` branch hosts the scheduled upstream-sync entry point and is not the custom deployment branch.
 
 ### 2. Backend development
 

@@ -8,7 +8,7 @@ Welcome to SublinkPro documentation. This index helps you find the right documen
 
 ### Getting Started
 - **[README.md](../README.md)** - Project overview, features, quick start
-- **[Installation Guide](installation.md)** - Docker, docker-compose, one-line script installation
+- **[Installation Guide](installation.md)** - Docker, custom image updates, uninstall, and native-script limitations
 
 ### Configuration & Operation
 - **[Configuration Reference](configuration.md)** - Environment variables, config file, precedence
@@ -50,7 +50,6 @@ Welcome to SublinkPro documentation. This index helps you find the right documen
 
 ### Agent Guides
 - **[AGENTS.md](../AGENTS.md)** - Architectural overview, tech stack, navigation map
-- **[.agents/README.md](../.agents/README.md)** - Skills system documentation
 
 ### Operational Skills
 Located in `.agents/skills/`:
@@ -60,7 +59,7 @@ Located in `.agents/skills/`:
 - **doc-sync-check** - Documentation sync requirements
 
 ### AI Agent Skill (User-Facing)
-- **[skill-sublinkpro/](../../skill-sublinkpro/)** - Portable AI skill for REST API interaction
+- **[skill-sublinkpro/](../skill-sublinkpro/)** - Portable AI skill for REST API interaction
   - `SKILL.md` - Skill definition and workflows
   - `reference/api.md` - API endpoint reference
   - `reference/deploy.md` - Deployment guide
@@ -135,7 +134,6 @@ See [Contributing Guide](../CONTRIBUTING.md) for details.
 
 ## 📞 Need Help?
 
-- **GitHub Issues**: https://github.com/ZeroDeng01/sublinkPro/issues
 - **Telegram Group**: See README for link
 - **Skill API**: Use `skill-sublinkpro/` for AI-assisted help
 

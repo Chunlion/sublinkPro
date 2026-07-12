@@ -4,19 +4,19 @@
 
 ## 快速开始
 
-1. **Fork 并克隆**仓库
+1. **克隆**仓库的 `custom` 分支
 2. **设置开发环境** - 参考 [开发指南](docs/development.zh-CN.md)
-3. **从 `dev` 分支创建**你的功能分支
+3. **从 `custom` 分支创建**你的功能分支
 4. **进行修改**并遵循下面的规范
 5. **测试你的改动** - 参考 [测试](#测试)
-6. **提交 PR** 到 `dev` 分支
+6. **提交 PR** 到 `custom` 分支
 
 ## 分支与提交规范
 
 ### 分支
 
-- `main` - 稳定发布分支
-- `dev` - 开发分支(PR 目标分支)
+- `main` - 默认分支与定时上游同步入口
+- `custom` - 当前 fork 的部署与定制开发分支
 - `feature/*` - 功能分支
 - `fix/*` - 修复分支
 
@@ -129,9 +129,9 @@ go test ./...            # 运行所有测试
 
 ## PR 流程
 
-1. **确保 PR 目标分支是 `dev`**(不是 `main`)
+1. **确保 fork 定制 PR 的目标分支是 `custom`**（不是 `main`）
 2. **完整填写 PR 模板**
-3. **关联相关 issue**(如果有)
+3. **关联相关背景**（如果有）
 4. **验证所有检查通过**:
    - 前端:`yarn run lint` 和 `yarn run build`
    - 后端:`golangci-lint run` 和 `go test ./...`
@@ -140,12 +140,10 @@ go test ./...            # 运行所有测试
 
 ### PR 检查
 
-当 PR 打开、重新打开或标记为 ready for review 时会自动运行检查:
+`custom` 分支中的 `.github/workflows/pr-checks.yml` 是手动占位，fork 定制 PR 不会自动运行检查。提交 review 前请在本地执行：
 
 - 后端:`golangci-lint` 和 `go test ./...`
 - 前端:`yarn run lint` 和 `yarn run build`
-
-如需手动重新触发检查,在 PR 中评论 `/recheck`。
 
 ## 文档更新
 
@@ -173,8 +171,6 @@ go test ./...            # 运行所有测试
 ## 获取帮助
 
 - 📖 阅读 [开发指南](docs/development.zh-CN.md)
-- 🐛 通过 [GitHub Issues](https://github.com/zerodeng/sublink-pro/issues) 报告问题
-- 💬 在 [GitHub Discussions](https://github.com/zerodeng/sublink-pro/discussions) 参与讨论
 - 📱 加入 Telegram: [SublinkPro 社区](https://t.me/sublinkpro)
 
 ## 许可证

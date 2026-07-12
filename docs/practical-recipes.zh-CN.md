@@ -466,7 +466,7 @@ go run main.go
 
 1. `Dockerfile` - Docker 构建
 2. `embed_prod.go` - 资源嵌入
-3. `.github/workflows/build-release.yml` - CI 构建
+3. `.github/workflows/docker-custom.yml` - 当前启用的 custom 镜像构建
 4. `main.go` - 启动和服务
 5. `webs/vite.config.js` - 前端构建配置
 6. `docs/build-and-deployment.md` - 构建文档
@@ -521,12 +521,17 @@ COPY --from=frontend-builder /app/webs/dist ./static
 
 #### 步骤 5：更新 CI
 
-**文件**：`.github/workflows/build-release.yml`
+**文件**：`.github/workflows/docker-custom.yml`
 
 ```yaml
-- name: 复制前端资源
-  run: cp -R webs/dist ./static
+- name: Build and push
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ./Dockerfile
 ```
+
+`build-release.yml` 在此个人 fork 中是禁用的手动占位；只有明确恢复独立发布流程时才需要修改它。
 
 ### 验证检查清单
 

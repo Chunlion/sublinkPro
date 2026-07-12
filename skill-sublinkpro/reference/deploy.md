@@ -14,7 +14,7 @@ main `SKILL.md`.
 
 ## Defaults & key facts
 
-- **Image:** `zerodeng/sublink-pro` (stable) or `zerodeng/sublink-pro:dev` (dev/preview builds).
+- **Image:** `ghcr.io/chunlion/sublinkpro:custom` (custom branch image; current workflow publishes `linux/amd64`).
 - **Port:** `8000` (web UI + API).
 - **Default login:** `admin` / `123456` — tell the user to change it immediately.
 - **Data directories** (persist across upgrades; removing them is destructive):
@@ -42,7 +42,7 @@ id -u                         # 0 means root (the install script requires root)
 Method choice guidance:
 - **docker-compose** — recommended default for most users (declarative, easy upgrades).
 - **docker run** — fine for a quick single-container start.
-- **install script** — for non-Docker hosts; it installs a native binary + system service, but is **interactive and root-only** (see Method C).
+- **install script** — not a supported custom branch install path until this fork publishes binary release assets (see Method C).
 
 Note: compose v2 is invoked as `docker compose ...` (space); v1 as `docker-compose ...` (hyphen). Detect which exists and use that form consistently.
 
@@ -50,17 +50,17 @@ Note: compose v2 is invoked as `docker compose ...` (space); v1 as `docker-compo
 
 ## Method A — docker run (local)
 
-Stable:
+Custom branch image:
 
 ```bash
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \
   -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
+  -d ghcr.io/chunlion/sublinkpro:custom
 ```
 
-Dev/preview build: replace the image with `zerodeng/sublink-pro:dev`.
+No separate dev/preview image is defined for this fork.
 
 ---
 
@@ -71,7 +71,7 @@ Dev/preview build: replace the image with `zerodeng/sublink-pro:dev`.
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"
@@ -97,7 +97,7 @@ wants; every one is optional and has a sensible default. Field meanings are from
 ```yaml
 services:
   sublinkpro:
-    image: zerodeng/sublink-pro
+    image: ghcr.io/chunlion/sublinkpro:custom
     container_name: sublinkpro
     ports:
       - "8000:8000"                  # change left side to remap host port, e.g. "9000:8000"
@@ -142,10 +142,17 @@ e.g. `http://substore:3000`), not via env vars.
 
 ---
 
-## Method C — one-line install script (local, root, INTERACTIVE)
+## Method C — native install script (local, root, INTERACTIVE)
+
+This fork currently does not publish GitHub binary release assets. Do not offer
+the one-line install/update script for custom branch deployments; use
+Docker/Compose with `ghcr.io/chunlion/sublinkpro:custom`.
+
+Fork script path, only usable after this fork publishes the expected
+`sublinkPro-linux-*` release files:
 
 ```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/install.sh)"
+sh -c "$(wget -qO- https://raw.githubusercontent.com/Chunlion/sublinkPro/refs/heads/custom/install.sh)"
 ```
 
 **Important:** this script is interactive (`read -r` menus) and must run as
@@ -248,7 +255,7 @@ commands. Prefix docker/compose commands with their existing SSH access:
 ```bash
 ssh user@host 'docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db -v $PWD/template:/app/template -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro'
+  -d ghcr.io/chunlion/sublinkpro:custom'
 ```
 
 For compose, write the file remotely then bring it up:
@@ -304,16 +311,16 @@ docker run:
 
 ```bash
 docker stop sublinkpro && docker rm sublinkpro
-docker pull zerodeng/sublink-pro
+docker pull ghcr.io/chunlion/sublinkpro:custom
 # re-run the SAME docker run command used at install (same -v mounts!)
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db -v $PWD/template:/app/template -v $PWD/logs:/app/logs \
-  -d zerodeng/sublink-pro
+  -d ghcr.io/chunlion/sublinkpro:custom
 docker image prune -f        # optional
 ```
 
-install script: re-run the one-line install command; it detects the existing
-install and offers Update (keeps data).
+install script: not a supported custom branch update path until this fork
+publishes binary release assets.
 
 ### Uninstall
 
@@ -324,7 +331,7 @@ alone keeps the data.
 ```bash
 # docker run install:
 docker stop sublinkpro && docker rm sublinkpro
-docker rmi zerodeng/sublink-pro            # optional: remove image
+docker rmi ghcr.io/chunlion/sublinkpro:custom # optional: remove image
 # rm -rf ./db ./template ./logs            # DESTRUCTIVE — only if user confirms
 
 # docker-compose install:
@@ -337,7 +344,7 @@ Native (install-script) install — hand the user the interactive uninstall
 script (it asks whether to keep data):
 
 ```bash
-sh -c "$(wget -qO- https://raw.githubusercontent.com/ZeroDeng01/sublinkPro/refs/heads/main/uninstall.sh)"
+sh -c "$(wget -qO- https://raw.githubusercontent.com/Chunlion/sublinkPro/refs/heads/custom/uninstall.sh)"
 ```
 
 ---
