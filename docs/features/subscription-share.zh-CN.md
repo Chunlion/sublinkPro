@@ -73,6 +73,13 @@
 - 当客户端通过订阅链接获取 Clash 配置时，响应头会带上 `profile-update-interval`，单位为小时。
 - 当客户端获取 Surge 配置时，`#!MANAGED-CONFIG` 中的 `interval` 会按设置自动换算为秒。
 
+## 节点选择来源
+
+- 手动选择节点会保存具体节点 ID，订阅输出会保留这些指定节点，直到再次编辑订阅。
+- 动态选择分组会保存分组名称，每次生成订阅时解析这些分组下的当前节点。
+- 动态选择机场会保存机场 ID，每次生成订阅时解析这些机场当前导入的节点。
+- 混合模式可以同时组合手动节点、动态分组和动态机场。输出顺序遵循已配置的排序，同名有效节点只保留最先出现的一份。
+
 ## 节点命名变量
 
 `NodeNameRule` 控制订阅输出时的节点名称。留空时，SublinkPro 会保留节点的实际使用名称。变量会在生成订阅时替换，因此速度、延迟、国家、标签、解锁状态等值都来自系统当前保存的节点数据。
@@ -116,6 +123,12 @@
 - Mieru 当前仅支持 Clash/mihomo 输出；`/c?client=clash` 会按 mihomo YAML 字段输出 `type: mieru`、`server`、`port` 或 `port-range`、`transport`、`username`、`password`，并保留可选的 `multiplexing`、`traffic-pattern` 与链式代理 `dialer-proxy`。
 - Mieru 官方存在 `mieru://` / `mierus://` 分享链接，但官方文档未定义适合逐字段编辑的通用 URL schema。SublinkPro 内部使用 `mieru://username:password@server:port?...#name` 作为原始编辑和 Clash/mihomo 导入回写格式；需要端口范围时使用 `portRange=2090-2099`，不写 `port`。
 - `/c?client=v2ray` 与 Surge 当前不支持 Mieru；SublinkPro 会跳过 Mieru 节点，不会把 `mieru://` 链接写入 v2ray base64，也不会生成 Surge 配置。
+
+## Snell 输出说明
+
+- Snell 支持 Clash/mihomo 与 Surge 输出。`/c?client=clash` 会按 mihomo YAML 字段输出 `type: snell`、`server`、`port`、`psk`，并保留可选的 `version`、`udp` 与 `obfs-opts`（`mode` / `host`）、通用连接层选项（`tfo`、`mptcp`、`interface-name`、`routing-mark`、`ip-version`）以及链式代理 `dialer-proxy`；`/c?client=surge` 会输出 `snell, server, port, psk=...`，并按需追加 `version`、`obfs`、`obfs-host`、`tfo` 与 `udp-relay`（`mptcp`、`interface-name`、`routing-mark`、`ip-version` 为 mihomo 专属，Surge 无对应字段不输出）。
+- Snell 官方没有定义通用的分享链接方案，mihomo 以 Clash YAML 字段描述 Snell。SublinkPro 内部使用 `snell://server:port?psk=...&version=...&obfs=...&obfs-host=...#name` 作为原始编辑和 Clash/mihomo、Surge 导入回写格式；`version` 默认为 mihomo 的 Snell v1，取值范围为 1/2/3。
+- `/c?client=v2ray` 当前不支持 Snell；SublinkPro 会跳过 Snell 节点，不会把 `snell://` 链接写入 v2ray base64。
 
 ## VLESS XHTTP 输出说明
 

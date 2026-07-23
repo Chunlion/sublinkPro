@@ -31,6 +31,7 @@ import useResolvedColorScheme from 'hooks/useResolvedColorScheme';
 import { withAlpha } from '../../../utils/colorUtils';
 import { getReadableTextTokens, getSurfaceTokens } from '../../../themes/surfaceTokens';
 import { getUnlockRenameVariables } from 'views/nodes/utils';
+import { parseNodeRenameRule } from './nodeRenameRuleUtils';
 
 const AVAILABLE_VARIABLES = [
   { key: '$Protocol', labelKey: 'subscriptions.rename.vars.protocol', color: '#9c27b0', descKey: 'subscriptions.rename.vars.protocolDesc' },
@@ -149,36 +150,6 @@ const PREVIEW_DATA = {
   $Index: '01',
   $DuplicateIndex: '1',
   $Tags: 'Fast|HK'
-};
-
-/**
- */
-const parseRule = (rule) => {
-  if (!rule) return [];
-
-  const items = [];
-  let id = 0;
-
-  const varRegex =
-    /\$(Name|LinkName|LinkCountry|Flag|SpeedIcon|Speed|DelayIcon|Delay|IpType|Residential|FraudScoreIcon|FraudScore|Unlock\([^)]+\)|Unlock|Group|Source|DuplicateIndex|Index|Protocol|Tags|TagGroup\([^)]+\))/g;
-
-  let match;
-  let lastIndex = 0;
-
-  while ((match = varRegex.exec(rule)) !== null) {
-    if (match.index > lastIndex) {
-      const sep = rule.substring(lastIndex, match.index);
-      items.push({ id: `sep-${id++}`, type: 'separator', value: sep });
-    }
-    items.push({ id: `var-${id++}`, type: 'variable', value: match[0] });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < rule.length) {
-    items.push({ id: `sep-${id++}`, type: 'separator', value: rule.substring(lastIndex) });
-  }
-
-  return items;
 };
 
 /**
@@ -335,7 +306,7 @@ export default function NodeRenameBuilder({ value, onChange }) {
   };
 
   useEffect(() => {
-    const items = parseRule(value);
+    const items = parseNodeRenameRule(value);
     setRuleItems(items);
     setIdCounter(items.length + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -453,11 +424,6 @@ export default function NodeRenameBuilder({ value, onChange }) {
       return item.value;
     })
     .join('');
-
-  const qualityVariableKeys = useMemo(
-    () => new Set(availableVariables.filter((item) => item.section === 'quality').map((item) => item.key)),
-    [availableVariables]
-  );
 
   return (
     <Box>
@@ -734,33 +700,6 @@ export default function NodeRenameBuilder({ value, onChange }) {
                 {preview || `(${t('common.empty')})`}
               </Typography>
             </Stack>
-            {qualityVariableKeys.size > 0 && (
-              <Stack direction="row" flexWrap="wrap" useFlexGap spacing={0.75} sx={{ mt: 1.25 }}>
-                {availableVariables
-                  .filter((variable) => variable.section === 'quality')
-                  .map((variable) => {
-                    const tone = getVariableTone(variable.key);
-                    return (
-                      <Chip
-                        key={variable.key}
-                        label={variable.label}
-                        size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          bgcolor: tone.subtleSurface,
-                          color: tone.textColor,
-                          border: '1px solid',
-                          borderColor: tone.softBorder,
-                          boxShadow: insetHighlight,
-                          '& .MuiChip-label': { px: 0.9 }
-                        }}
-                      />
-                    );
-                  })}
-              </Stack>
-            )}
           </Alert>
         </Fade>
       )}

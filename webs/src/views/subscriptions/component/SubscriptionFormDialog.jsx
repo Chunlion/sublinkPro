@@ -44,6 +44,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 import NodeRenameBuilder from './NodeRenameBuilder';
+import { previewSubscriptionNodeName } from './nodeRenameRuleUtils';
 import NodeNamePreprocessor from 'components/NodeNamePreprocessor';
 import NodeNameFilter from 'components/NodeNameFilter';
 import NodeTagFilter from './NodeTagFilter';
@@ -74,31 +75,6 @@ const normalizeCountryCodeList = (values) => {
   return Array.from(new Set(values.map((value) => normalizeCountryCode(value)).filter(Boolean)));
 };
 
-const previewNodeName = (rule) => {
-  if (!rule) return '';
-  let result = rule.replace(/\$TagGroup\([^)]+\)/g, 'Fast');
-  return result
-    .replace(/\$Name/g, 'Hong Kong node remark')
-    .replace(/\$Flag/g, '🇭🇰')
-    .replace(/\$SpeedIcon/g, getSpeedIcon(1.5, 'success'))
-    .replace(/\$DelayIcon/g, getDelayIcon(125, 'success'))
-    .replace(/\$IpType/g, 'Native IP')
-    .replace(/\$Residential/g, 'Residential IP')
-    .replace(/\$FraudScoreIcon/g, getFraudScoreIcon(12, 'success'))
-    .replace(/\$FraudScore/g, '12')
-    .replace(/\$Unlock\([^)]+\)/g, 'Unlock-US')
-    .replace(/\$LinkName/g, 'HongKong01')
-    .replace(/\$LinkCountry/g, 'HK')
-    .replace(/\$Speed/g, '1.50MB/s')
-    .replace(/\$Delay/g, '125ms')
-    .replace(/\$Group/g, 'Premium')
-    .replace(/\$Source/g, 'Airport A')
-    .replace(/\$DuplicateIndex/g, '1')
-    .replace(/\$Index/g, '1')
-    .replace(/\$Protocol/g, 'VMess')
-    .replace(/\$Tags/g, 'Fast|Hong Kong');
-};
-
 const hasPreprocessRules = (value) => {
   if (!value) return false;
   try {
@@ -123,6 +99,7 @@ export default function SubscriptionFormDialog({
   groupNodeCounts,
   allNodeTotal,
   groupOptions,
+  airportOptions,
   sourceOptions,
   countryOptions,
   tagOptions,
@@ -200,6 +177,10 @@ export default function SubscriptionFormDialog({
   const normalizedCountryOptions = useMemo(() => normalizeCountryCodeList(countryOptions), [countryOptions]);
   const normalizedCountryWhitelist = useMemo(() => normalizeCountryCodeList(formData.CountryWhitelist), [formData.CountryWhitelist]);
   const normalizedCountryBlacklist = useMemo(() => normalizeCountryCodeList(formData.CountryBlacklist), [formData.CountryBlacklist]);
+  const selectedAirportOptions = useMemo(() => {
+    const airportByID = new Map((airportOptions || []).map((airport) => [Number(airport.id ?? airport.ID), airport]));
+    return (formData.selectedAirports || []).map((id) => airportByID.get(Number(id)) || { id: Number(id), name: `#${id}` });
+  }, [airportOptions, formData.selectedAirports]);
 
   const updateCountryFilterField = (field, values) => {
     setFormData({ ...formData, [field]: normalizeCountryCodeList(values) });
@@ -568,18 +549,20 @@ export default function SubscriptionFormDialog({
               <Typography variant="subtitle1" fontWeight={600}>
                 {t('subscriptions.form.sections.nodeSelection')}
               </Typography>
-              {!expandedPanels.nodes && (formData.selectedNodes.length > 0 || formData.selectedGroups.length > 0) && (
-                <Chip
-                  size="small"
-                  label={t('subscriptions.form.nodeSelection.summary', {
-                    nodeCount: formData.selectedNodes.length,
-                    groupCount: formData.selectedGroups.length
-                  })}
-                  color="primary"
-                  variant="outlined"
-                  sx={{ ml: 1 }}
-                />
-              )}
+              {!expandedPanels.nodes &&
+                (formData.selectedNodes.length > 0 || formData.selectedGroups.length > 0 || formData.selectedAirports.length > 0) && (
+                  <Chip
+                    size="small"
+                    label={t('subscriptions.form.nodeSelection.summary', {
+                      nodeCount: formData.selectedNodes.length,
+                      groupCount: formData.selectedGroups.length,
+                      airportCount: formData.selectedAirports.length
+                    })}
+                    color="primary"
+                    variant="outlined"
+                    sx={{ ml: 1 }}
+                  />
+                )}
             </AccordionSummary>
             <AccordionDetails sx={accordionDetailsSx}>
               <Stack spacing={2.5}>
@@ -603,19 +586,60 @@ export default function SubscriptionFormDialog({
 
                 {/* Group Selection */}
                 {(formData.selectionMode === 'groups' || formData.selectionMode === 'mixed') && (
-                  <Autocomplete
-                    multiple
-                    options={groupOptions}
-                    value={formData.selectedGroups}
-                    onChange={(e, newValue) => setFormData({ ...formData, selectedGroups: newValue })}
-                    sx={autocompleteChipSx}
-                    renderInput={(params) => <TextField {...params} label={t('subscriptions.form.nodeSelection.groupSelect')} />}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        {t('subscriptions.form.nodeSelection.groupOption', { name: option, count: groupNodeCounts[option] || 0 })}
-                      </li>
-                    )}
-                  />
+                  <Stack spacing={2}>
+                    <Autocomplete
+                      multiple
+                      options={groupOptions}
+                      value={formData.selectedGroups}
+                      onChange={(event, newValue) => {
+                        void event;
+                        setFormData({ ...formData, selectedGroups: newValue });
+                      }}
+                      sx={autocompleteChipSx}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label={t('subscriptions.form.nodeSelection.groupSelect')}
+                          helperText={t('subscriptions.form.nodeSelection.groupSelectHelper')}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <li {...props}>
+                          {t('subscriptions.form.nodeSelection.groupOption', { name: option, count: groupNodeCounts[option] || 0 })}
+                        </li>
+                      )}
+                    />
+                    <Autocomplete
+                      multiple
+                      options={airportOptions || []}
+                      value={selectedAirportOptions}
+                      onChange={(event, newValue) => {
+                        void event;
+                        setFormData({
+                          ...formData,
+                          selectedAirports: newValue.map((airport) => Number(airport.id ?? airport.ID)).filter((id) => Number.isInteger(id))
+                        });
+                      }}
+                      getOptionLabel={(option) => option?.name || option?.Name || ''}
+                      isOptionEqualToValue={(option, value) => Number(option?.id ?? option?.ID) === Number(value?.id ?? value?.ID)}
+                      sx={autocompleteChipSx}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label={t('subscriptions.form.nodeSelection.airportSelect')}
+                          helperText={t('subscriptions.form.nodeSelection.airportSelectHelper')}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <li {...props}>
+                          {t('subscriptions.form.nodeSelection.airportOption', {
+                            name: option.name || option.Name,
+                            count: option.nodeCount || option.NodeCount || 0
+                          })}
+                        </li>
+                      )}
+                    />
+                  </Stack>
                 )}
 
                 {/* {t('subscriptions.form.sections.nodeSelection')} */}
@@ -1214,7 +1238,12 @@ export default function SubscriptionFormDialog({
                       {formData.nodeNameRule && (
                         <Alert variant={'standard'} severity="info" sx={{ mt: 1 }}>
                           <Typography variant="body2">
-                            <strong>{t('subscriptions.form.nameProcessing.preview')}</strong> {previewNodeName(formData.nodeNameRule)}
+                            <strong>{t('subscriptions.form.nameProcessing.preview')}</strong>{' '}
+                            {previewSubscriptionNodeName(formData.nodeNameRule, {
+                              speedIcon: getSpeedIcon(1.5, 'success'),
+                              delayIcon: getDelayIcon(125, 'success'),
+                              fraudScoreIcon: getFraudScoreIcon(12, 'success')
+                            })}
                           </Typography>
                         </Alert>
                       )}
@@ -1309,7 +1338,10 @@ export default function SubscriptionFormDialog({
             variant="outlined"
             startIcon={<VisibilityIcon />}
             onClick={onPreview}
-            disabled={previewLoading || (formData.selectedNodes.length === 0 && formData.selectedGroups.length === 0)}
+            disabled={
+              previewLoading ||
+              (formData.selectedNodes.length === 0 && formData.selectedGroups.length === 0 && formData.selectedAirports.length === 0)
+            }
           >
             {previewLoading ? t('subscriptions.form.actions.previewLoading') : t('subscriptions.form.actions.previewNode')}
             <Chip size="small" label="Beta" color="error" variant="outlined" sx={{ ml: 1 }} />

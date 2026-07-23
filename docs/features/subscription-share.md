@@ -73,6 +73,13 @@ Case 3: Access tracking
 - When a client fetches Clash config through a subscription link, the response header includes `profile-update-interval`, in hours.
 - When a client fetches Surge config, `interval` in `#!MANAGED-CONFIG` is converted to seconds automatically according to the setting.
 
+## Node Selection Sources
+
+- Manual node selection stores the selected node IDs. The output keeps those specific nodes until the subscription is edited.
+- Dynamic group selection stores group names and resolves the current nodes in those groups whenever the subscription is generated.
+- Dynamic airport selection stores airport IDs and resolves the current nodes imported from those airports whenever the subscription is generated.
+- Mixed mode can combine manual nodes, dynamic groups, and dynamic airports. Output order follows the configured sort order, and duplicate effective node names keep the first occurrence.
+
 ## Node Naming Variables
 
 `NodeNameRule` controls the node name rendered in subscription output. If it is empty, SublinkPro keeps the node's effective name. Variables are replaced when the subscription is generated, so values such as speed, delay, country, tags, and unlock status reflect the node data currently stored in the system.
@@ -116,6 +123,12 @@ For a Hong Kong node named `Premium 01`, the output could become `[🇭🇰] 香
 - Mieru currently supports Clash/mihomo output only. `/c?client=clash` outputs mihomo YAML fields including `type: mieru`, `server`, `port` or `port-range`, `transport`, `username`, `password`, and optional `multiplexing`, `traffic-pattern`, and chain proxy `dialer-proxy`.
 - Official Mieru has `mieru://` and `mierus://` share links, but official docs do not define a general URL schema suitable for field by field editing. SublinkPro internally uses `mieru://username:password@server:port?...#name` as the raw edit and Clash/mihomo import write back format. When a port range is needed, use `portRange=2090-2099` and do not write `port`.
 - `/c?client=v2ray` and Surge currently do not support Mieru. SublinkPro skips Mieru nodes, does not write `mieru://` links into v2ray base64, and does not generate Surge config for them.
+
+## Snell Output Notes
+
+- Snell supports Clash/mihomo and Surge output. `/c?client=clash` outputs mihomo YAML fields including `type: snell`, `server`, `port`, `psk`, plus optional `version`, `udp`, `obfs-opts` (`mode` / `host`), the shared connection-layer options `tfo`, `mptcp`, `interface-name`, `routing-mark`, `ip-version`, and chain proxy `dialer-proxy`. `/c?client=surge` outputs `snell, server, port, psk=...` and appends `version`, `obfs`, `obfs-host`, `udp-relay`, and `tfo` when present (the other mihomo-only connection-layer options have no Surge equivalent).
+- Snell has no official general share-link schema; mihomo describes Snell with Clash YAML fields. SublinkPro internally uses `snell://server:port?psk=...&version=...&obfs=...&obfs-host=...#name` as the raw edit and Clash/mihomo, Surge import write back format. `version` defaults to mihomo's Snell v1 and accepts 1/2/3.
+- `/c?client=v2ray` currently does not support Snell. SublinkPro skips Snell nodes and does not write `snell://` links into v2ray base64.
 
 ## VLESS XHTTP Output Notes
 

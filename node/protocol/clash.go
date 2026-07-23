@@ -158,13 +158,22 @@ type Proxy struct {
 	Sni                   string         `yaml:"sni,omitempty"`                         // SNI
 	Obfs                  string         `yaml:"obfs,omitempty"`                        // 混淆模式 (SSR/Hysteria2)
 	Obfs_password         string         `yaml:"obfs-password,omitempty"`               // 混淆密码
+	Psk                   string         `yaml:"psk,omitempty"`                         // Snell 预共享密钥
+	Obfs_opts             map[string]any `yaml:"obfs-opts,omitempty"`                   // Snell 混淆选项 (mode/host)
 	Protocol              string         `yaml:"protocol,omitempty"`                    // SSR 协议
+	ProtocolParam         string         `yaml:"protocol-param,omitempty"`              // SSR 协议参数
+	ObfsParam             string         `yaml:"obfs-param,omitempty"`                  // SSR 混淆参数
 	Uuid                  string         `yaml:"uuid,omitempty"`                        // UUID (VMess/VLESS)
 	Peer                  string         `yaml:"peer,omitempty"`                        // Peer (Hysteria)
 	Congestion_controller string         `yaml:"congestion-controller,omitempty"`       // 拥塞控制 (Tuic)
 	Udp_relay_mode        string         `yaml:"udp-relay-mode,omitempty"`              // UDP 转发模式 (Tuic)
 	Disable_sni           bool           `yaml:"disable-sni,omitempty"`                 // 禁用 SNI (Tuic)
 	Dialer_proxy          string         `yaml:"dialer-proxy,omitempty"`                // 前置代理
+	// 通用 BasicOption 字段（mihomo 所有出站共用的连接层选项）
+	Mptcp          bool   `yaml:"mptcp,omitempty"`          // 是否启用 MPTCP
+	Interface_name string `yaml:"interface-name,omitempty"` // 绑定的本地网卡名称
+	Routing_mark   int    `yaml:"routing-mark,omitempty"`   // Linux fwmark 路由标记
+	Ip_version     string `yaml:"ip-version,omitempty"`     // IP 版本偏好 (dual/ipv4/ipv6/ipv4-prefer/ipv6-prefer)
 	// SS 插件字段
 	Plugin      string         `yaml:"plugin,omitempty"`      // SS 插件名称
 	Plugin_opts map[string]any `yaml:"plugin-opts,omitempty"` // SS 插件选项
