@@ -71,7 +71,7 @@ import { withAlpha } from 'utils/colorUtils';
 import useResolvedColorScheme from 'hooks/useResolvedColorScheme';
 
 // Monaco Editor
-import Editor, { DiffEditor } from '@monaco-editor/react';
+import Editor, { DiffEditor } from 'utils/monacoEditor';
 
 const createEmptyTemplateAIAssistant = () => ({
   sessionId: '',

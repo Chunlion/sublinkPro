@@ -43,7 +43,7 @@ import { getScripts, addScript, updateScript, deleteScript, getScriptUsage } fro
 import { formatDateTime } from 'i18n/locales';
 
 // Monaco Editor
-import Editor from '@monaco-editor/react';
+import Editor from 'utils/monacoEditor';
 
 const buildDefaultScript = (t) => `// ${t('scripts.template.modifyNodes')}
 /**
