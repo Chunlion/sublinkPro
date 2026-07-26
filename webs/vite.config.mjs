@@ -79,6 +79,8 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // 缓存静态资源（排除 html，因为后端会动态注入配置）
           globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2}'],
+          // TypeScript worker is loaded on demand by Monaco and does not need precaching.
+          globIgnores: ['**/ts.worker-*.js'],
           // 导航请求使用 NetworkFirst 策略
           // 这样每次都会尝试从服务器获取最新的 index.html（带配置注入）
           navigateFallback: null, // 禁用默认的导航回退
