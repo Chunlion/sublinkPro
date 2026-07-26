@@ -20,19 +20,6 @@ type User struct {
 	Email    string
 }
 
-// 新增用户
-func UserAdd(c *gin.Context) {
-	user := &models.User{
-		Username: "test",
-		Password: "test",
-	}
-	err := user.Create()
-	if err != nil {
-		utils.Error("创建用户失败: %v", err)
-	}
-	utils.OkWithMsg(c, "创建用户成功")
-}
-
 // 获取用户信息
 func UserMe(c *gin.Context) {
 	// 获取jwt中的username

@@ -95,9 +95,8 @@ func DecodeSSRURL(s string) (Ssr, error) {
 				}
 				paramMap[parts[0]] = parts[1]
 			}
-		} else {
-			q := strings.Split(query, "=")
-			paramMap[q[0]] = q[1]
+		} else if kv := strings.SplitN(query, "=", 2); len(kv) == 2 {
+			paramMap[kv[0]] = kv[1]
 		}
 		remarks = utils.Base64Decode(paramMap["remarks"])
 		obfsparam = utils.Base64Decode(paramMap["obfsparam"])

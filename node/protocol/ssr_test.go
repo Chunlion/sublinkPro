@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"sublink/utils"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,5 +59,30 @@ func TestSSRClashYAMLParametersRoundTrip(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("Clash YAML output missing %q: %s", want, string(data))
 		}
+	}
+}
+
+// TestDecodeSSRURLMalformedQueryDoesNotPanic 回归测试：query 段缺少 '=' 分隔符
+// （如裸参数名或空 query）时不能触发 index out of range panic。
+func TestDecodeSSRURLMalformedQueryDoesNotPanic(t *testing.T) {
+	cases := []struct {
+		name    string
+		payload string
+	}{
+		{"bare token without equals", "example.com:8388:origin:aes-256-cfb:plain:cGFzcw/?remarks"},
+		{"empty query", "example.com:8388:origin:aes-256-cfb:plain:cGFzcw/?"},
+		{"single valid parameter", "example.com:8388:origin:aes-256-cfb:plain:cGFzcw/?remarks=dGVzdA"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			link := "ssr://" + utils.Base64Encode(tc.payload)
+			decoded, err := DecodeSSRURL(link)
+			if err != nil {
+				t.Fatalf("DecodeSSRURL failed: %v", err)
+			}
+			if decoded.Server != "example.com" {
+				t.Fatalf("Server = %q, want %q", decoded.Server, "example.com")
+			}
+		})
 	}
 }

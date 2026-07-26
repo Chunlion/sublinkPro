@@ -49,8 +49,10 @@ const parseCronField = (field, min, max) => {
     // 处理 */n 格式
     if (part.startsWith('*/')) {
       const step = parseInt(part.slice(2), 10);
-      for (let i = min; i <= max; i += step) {
-        values.push(i);
+      if (step > 0) {
+        for (let i = min; i <= max; i += step) {
+          values.push(i);
+        }
       }
     }
     // 处理 n-m/s 格式 (范围+步长)
@@ -58,8 +60,10 @@ const parseCronField = (field, min, max) => {
       const [range, stepStr] = part.split('/');
       const [start, end] = range.split('-').map((n) => parseInt(n, 10));
       const step = parseInt(stepStr, 10);
-      for (let i = start; i <= end; i += step) {
-        values.push(i);
+      if (step > 0) {
+        for (let i = start; i <= end; i += step) {
+          values.push(i);
+        }
       }
     }
     // 处理 n-m 格式 (范围)

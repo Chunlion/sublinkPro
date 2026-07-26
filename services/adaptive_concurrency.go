@@ -357,10 +357,14 @@ func (acc *AdaptiveConcurrencyController) AcquireDynamic() {
 // ReleaseDynamic 动态释放并发槽位
 // 减少活跃计数并广播唤醒等待的 goroutine
 func (acc *AdaptiveConcurrencyController) ReleaseDynamic() {
+	// 持有 acc.mu 再修改活跃计数并广播，避免与 AcquireDynamic 的谓词检查/
+	// cond.Wait() 交错导致丢失唤醒（lost wakeup），进而永久阻塞调度协程
+	acc.mu.Lock()
 	atomic.AddInt32(&acc.activeCount, -1)
 
 	// 广播唤醒所有等待者（可能有多个因并发提升而可以启动）
 	acc.cond.Broadcast()
+	acc.mu.Unlock()
 }
 
 // AcquireWithDelay 获取并发槽位并等待启动间隔

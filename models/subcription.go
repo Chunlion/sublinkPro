@@ -1173,6 +1173,17 @@ func (sub *Subcription) Copy() (*Subcription, error) {
 		DeduplicationRule:     sub.DeduplicationRule,
 		RefreshUsageOnRequest: sub.RefreshUsageOnRequest,
 		UpdateInterval:        sub.UpdateInterval,
+		MaxFraudScore:         sub.MaxFraudScore,
+		OnlyResidential:       sub.OnlyResidential,
+		OnlyNative:            sub.OnlyNative,
+		ResidentialType:       sub.ResidentialType,
+		IPType:                sub.IPType,
+		QualityStatus:         sub.QualityStatus,
+		UnlockProvider:        sub.UnlockProvider,
+		UnlockStatus:          sub.UnlockStatus,
+		UnlockKeyword:         sub.UnlockKeyword,
+		UnlockRules:           sub.UnlockRules,
+		UnlockRuleMode:        sub.UnlockRuleMode,
 	}
 
 	// 使用事务确保数据一致性

@@ -170,10 +170,7 @@ func Base64Decode(s string) string {
 	// 去除空格
 	s = strings.ReplaceAll(s, " ", "")
 	// 判断是否有特殊字符来判断是标准base64还是url base64
-	match, err := regexp.MatchString(`[_-]`, s)
-	if err != nil {
-		fmt.Println(err)
-	}
+	match := strings.ContainsAny(s, "-_")
 	if !match {
 		// 默认使用标准解码
 		encoded := IsBase64makeup(s)
@@ -201,10 +198,7 @@ func Base64Decode2(s string) string {
 	// 去除空格
 	s = strings.ReplaceAll(s, " ", "")
 	// 判断是否有特殊字符来判断是标准base64还是url base64
-	match, err := regexp.MatchString(`[_-]`, s)
-	if err != nil {
-		fmt.Println(err)
-	}
+	match := strings.ContainsAny(s, "-_")
 	if !match {
 		// 默认使用标准解码
 		decoded, err := base64.StdEncoding.DecodeString(s)

@@ -170,7 +170,7 @@ func Templateinit() {
 	// 创建template目录
 	_, err = os.Stat("./template")
 	if os.IsNotExist(err) {
-		err = os.Mkdir("./template", 0666)
+		err = os.Mkdir("./template", 0755)
 		if err != nil {
 			utils.Error("创建模板目录失败: %v", err)
 			return

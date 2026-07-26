@@ -1,6 +1,31 @@
 package utils
 
-import "testing"
+import (
+	"encoding/base64"
+	"testing"
+)
+
+// TestBase64DecodeStandardAndURLSafe 回归测试：Base64Decode 通过是否包含 '-'/'_'
+// 区分标准与 URL-safe 编码，两种输入都必须正确解码。
+func TestBase64DecodeStandardAndURLSafe(t *testing.T) {
+	// "???" 的标准编码为 "Pz8/"（含 '/'），URL-safe 编码为 "Pz8_"（含 '_'）
+	raw := "???"
+	stdEncoded := base64.StdEncoding.EncodeToString([]byte(raw))
+	urlEncoded := base64.URLEncoding.EncodeToString([]byte(raw))
+
+	if got := Base64Decode(stdEncoded); got != raw {
+		t.Fatalf("Base64Decode(%q) = %q, want %q", stdEncoded, got, raw)
+	}
+	if got := Base64Decode(urlEncoded); got != raw {
+		t.Fatalf("Base64Decode(%q) = %q, want %q", urlEncoded, got, raw)
+	}
+
+	// 无填充的 URL-safe 输入依赖 IsBase64makeup 自动补齐
+	unpadded := base64.RawURLEncoding.EncodeToString([]byte(raw))
+	if got := Base64Decode(unpadded); got != raw {
+		t.Fatalf("Base64Decode(%q) = %q, want %q", unpadded, got, raw)
+	}
+}
 
 func TestIpFormatValidationAcceptsMultilineEntries(t *testing.T) {
 	input := "192.168.0.0/16\r\n10.10.2.0/24"

@@ -197,6 +197,65 @@ func TestSubcriptionCopyPreservesUpdateInterval(t *testing.T) {
 	}
 }
 
+// TestSubcriptionCopyPreservesQualityAndUnlockFilters 回归测试：Copy() 必须保留
+// IP 质量过滤与流媒体解锁过滤配置，防止复制订阅时静默丢失这些字段。
+func TestSubcriptionCopyPreservesQualityAndUnlockFilters(t *testing.T) {
+	setupSubcriptionCopyTestDB(t)
+
+	sub := &Subcription{
+		Name:            "quality-unlock-sub",
+		Config:          `{"clash":"./template/clash.yaml","surge":"./template/surge.conf"}`,
+		MaxFraudScore:   35,
+		OnlyResidential: true,
+		OnlyNative:      true,
+		ResidentialType: "residential",
+		IPType:          "native",
+		QualityStatus:   "tested",
+		UnlockProvider:  "Netflix",
+		UnlockStatus:    "unlocked",
+		UnlockKeyword:   "NF",
+		UnlockRules:     `[{"provider":"Netflix","status":"unlocked"}]`,
+		UnlockRuleMode:  "all",
+	}
+	if err := sub.Add(); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+
+	copySub, err := sub.Copy()
+	if err != nil {
+		t.Fatalf("copy subscription: %v", err)
+	}
+
+	if copySub.MaxFraudScore != sub.MaxFraudScore {
+		t.Fatalf("expected copied MaxFraudScore %d, got %d", sub.MaxFraudScore, copySub.MaxFraudScore)
+	}
+	if copySub.OnlyResidential != sub.OnlyResidential {
+		t.Fatalf("expected copied OnlyResidential %v, got %v", sub.OnlyResidential, copySub.OnlyResidential)
+	}
+	if copySub.OnlyNative != sub.OnlyNative {
+		t.Fatalf("expected copied OnlyNative %v, got %v", sub.OnlyNative, copySub.OnlyNative)
+	}
+	stringFields := []struct {
+		name string
+		want string
+		got  string
+	}{
+		{"ResidentialType", sub.ResidentialType, copySub.ResidentialType},
+		{"IPType", sub.IPType, copySub.IPType},
+		{"QualityStatus", sub.QualityStatus, copySub.QualityStatus},
+		{"UnlockProvider", sub.UnlockProvider, copySub.UnlockProvider},
+		{"UnlockStatus", sub.UnlockStatus, copySub.UnlockStatus},
+		{"UnlockKeyword", sub.UnlockKeyword, copySub.UnlockKeyword},
+		{"UnlockRules", sub.UnlockRules, copySub.UnlockRules},
+		{"UnlockRuleMode", sub.UnlockRuleMode, copySub.UnlockRuleMode},
+	}
+	for _, field := range stringFields {
+		if field.got != field.want {
+			t.Fatalf("expected copied %s %q, got %q", field.name, field.want, field.got)
+		}
+	}
+}
+
 func TestSubcriptionAirportOnlyResolvesCurrentAirportNodes(t *testing.T) {
 	setupSubcriptionCopyTestDB(t)
 

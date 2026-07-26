@@ -558,7 +558,7 @@ func renderPreparedV2ray(c *gin.Context, prepared preparedClientResponse) {
 			resp, err := getRemoteSubscription(c.Request.Context(), v.Link)
 			if err != nil {
 				utils.Error("Error getting link: %v", err)
-				return
+				continue
 			}
 			defer func() { _ = resp.Body.Close() }()
 			body, _ := io.ReadAll(resp.Body)
@@ -890,7 +890,7 @@ func renderPreparedSurge(c *gin.Context, prepared preparedClientResponse) {
 			resp, err := getRemoteSubscription(c.Request.Context(), v.Link)
 			if err != nil {
 				utils.Error("Error getting link: %v", err)
-				return
+				continue
 			}
 			defer func() { _ = resp.Body.Close() }()
 			body, _ := io.ReadAll(resp.Body)
