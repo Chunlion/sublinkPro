@@ -1,6 +1,9 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { EffectScatterChart, LinesChart } from 'echarts/charts';
+import { GeoComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 // import 'echarts-gl'; // 3D Not needed for flat map
 import { alpha, useTheme } from '@mui/material/styles';
 import { Box, Card, Typography, CircularProgress } from '@mui/material';
@@ -11,6 +14,7 @@ import { isoToFlag } from 'utils/countryDisplay';
 import { COUNTRY_COORDINATES, COUNTRY_NAME_MAP } from './countryData';
 
 // Register standard world map
+echarts.use([EffectScatterChart, LinesChart, GeoComponent, TooltipComponent, CanvasRenderer]);
 echarts.registerMap('world', worldJson);
 
 // Helper: Get Flag Emoji from Country Code

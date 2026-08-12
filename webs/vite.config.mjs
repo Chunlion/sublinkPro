@@ -26,7 +26,57 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
-      chunkSizeWarningLimit: 1600
+      chunkSizeWarningLimit: 1600,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'monaco-typescript',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]languages?[\\/](?:features[\\/])?typescript[\\/]/,
+                priority: 40,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-base',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]/,
+                priority: 30,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-platform',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]platform[\\/]/,
+                priority: 30,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-editor-contrib',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]editor[\\/]contrib[\\/]/,
+                priority: 30,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-editor-browser',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]editor[\\/]browser[\\/]/,
+                priority: 30,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-editor-common',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]editor[\\/]common[\\/]/,
+                priority: 30,
+                includeDependenciesRecursively: false
+              },
+              {
+                name: 'monaco-editor',
+                test: /[\\/]node_modules[\\/]monaco-editor[\\/]/,
+                priority: 20,
+                includeDependenciesRecursively: false
+              }
+            ]
+          }
+        }
+      }
     },
     preview: {
       open: true,
