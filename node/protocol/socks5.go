@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"strconv"
 	"strings"
 	"sublink/utils"
 )
@@ -56,7 +55,7 @@ func DecodeSocks5URL(s string) (Socks5, error) {
 		rawPort = "443"
 	}
 	socks5.Server = host
-	socks5.Port, err = strconv.Atoi(rawPort)
+	socks5.Port, _, err = parsePort(rawPort, 0)
 	if err != nil {
 		fmt.Println("Socks5 Port conversion failed:", err)
 		return Socks5{}, err

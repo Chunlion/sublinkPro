@@ -3,7 +3,6 @@ package protocol
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"sublink/utils"
 )
@@ -71,7 +70,7 @@ func DecodeMieruURL(s string) (Mieru, error) {
 	rawPort := u.Port()
 	port := 0
 	if rawPort != "" {
-		port, err = strconv.Atoi(rawPort)
+		port, _, err = parsePort(rawPort, 0)
 		if err != nil {
 			return Mieru{}, fmt.Errorf("Mieru port conversion failed: %w", err)
 		}

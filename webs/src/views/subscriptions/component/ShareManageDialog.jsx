@@ -147,6 +147,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInfo, setConfirmInfo] = useState({ title: '', content: '', onConfirm: null });
   const dialogContentRef = useRef(null);
+  const listRequestIdRef = useRef(0);
 
   const getServerUrl = useCallback(() => {
     if (systemDomainConfig) {
@@ -169,6 +170,10 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
   const fetchShares = useCallback(
     async (keyword = '', isSearch = false, customSortBy = null, customSortOrder = null, silent = false) => {
       if (!subscription?.ID) return;
+      const requestId = ++listRequestIdRef.current;
+      setLoading(false);
+      setSearching(false);
+      setLoadingMore(false);
       // silent 模式用于手动刷新：不显示 loading 骨架或 searching 遮罩，
       // 仅由调用方（刷新按钮图标）提供加载反馈，数据在底层静默更新。
       if (!silent) {
@@ -189,6 +194,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
         const actualSortOrder = customSortOrder !== null ? customSortOrder : sortOrder;
 
         const res = await getShares(subscription.ID, 1, SHARE_PAGE_SIZE, keywordValue, ipFilterValue, actualSortBy, actualSortOrder);
+        if (requestId !== listRequestIdRef.current) return;
         if (res.data?.items) {
           // 分页响应
           setShares(res.data.items);
@@ -203,7 +209,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
       } catch (error) {
         console.error('Failed to get share list:', error);
       } finally {
-        if (!silent) {
+        if (!silent && requestId === listRequestIdRef.current) {
           if (isSearch) {
             setSearching(false);
           } else {
@@ -217,6 +223,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
 
   const loadMoreShares = useCallback(async () => {
     if (loadingMore || !hasMore || !subscription?.ID) return;
+    const requestId = listRequestIdRef.current;
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
@@ -230,7 +237,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
         sortBy,
         sortOrder
       );
-      if (res.data?.items) {
+      if (requestId === listRequestIdRef.current && res.data?.items) {
         setShares((prev) => [...prev, ...res.data.items]);
         setHasMore(res.data.hasMore || false);
         setPage(nextPage);
@@ -238,7 +245,9 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
     } catch (error) {
       console.error('Failed to load more shares:', error);
     } finally {
-      setLoadingMore(false);
+      if (requestId === listRequestIdRef.current) {
+        setLoadingMore(false);
+      }
     }
   }, [loadingMore, hasMore, subscription?.ID, page, searchQuery, ipFilter, sortBy, sortOrder]);
 
@@ -679,6 +688,7 @@ export default function ShareManageDialog({ open, subscription, onClose, showMes
 
   useEffect(() => {
     return () => {
+      listRequestIdRef.current += 1;
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }

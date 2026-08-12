@@ -119,3 +119,20 @@ func TestNormalizeHostsForStorageDeduplicatesByLowercaseHostname(t *testing.T) {
 		t.Fatalf("second hostname = %q, want api.example.com", hosts[1].Hostname)
 	}
 }
+
+func TestSyncHostsFromTextReturnsErrorAfterPanic(t *testing.T) {
+	db := setupHostTestDB(t)
+	if err := db.Callback().Create().Before("gorm:create").Register("test:panic", func(*gorm.DB) {
+		panic("create failed")
+	}); err != nil {
+		t.Fatalf("register create callback: %v", err)
+	}
+
+	_, _, _, err := SyncHostsFromText("example.com 1.1.1.1")
+	if err == nil {
+		t.Fatal("expected recovered panic to be returned as an error")
+	}
+	if hostCache.Count() != 0 {
+		t.Fatalf("host cache count = %d, want 0", hostCache.Count())
+	}
+}

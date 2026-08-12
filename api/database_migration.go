@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,11 @@ import (
 	"sublink/utils"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	databaseMigrationUploadSizeLimit  int64 = 1 << 30
+	databaseMigrationRequestSizeLimit int64 = databaseMigrationUploadSizeLimit + 1<<20
 )
 
 func ImportDatabaseMigration(c *gin.Context) {
@@ -31,6 +37,7 @@ func ImportDatabaseMigration(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, databaseMigrationRequestSizeLimit)
 	uploadedFile, err := c.FormFile("file")
 	if err != nil {
 		utils.FailWithMsg(c, "请上传 SQLite 数据库文件或 backup.zip")
@@ -53,11 +60,11 @@ func ImportDatabaseMigration(c *gin.Context) {
 		return
 	}
 
-	if _, err := io.Copy(tempFile, src); err != nil {
+	if err := copyDatabaseMigrationUpload(tempFile, src, databaseMigrationUploadSizeLimit); err != nil {
 		_ = src.Close()
 		_ = tempFile.Close()
 		_ = os.Remove(tempPath)
-		utils.FailWithMsg(c, "保存迁移文件失败: "+err.Error())
+		utils.FailWithMsg(c, err.Error())
 		return
 	}
 	if err := src.Close(); err != nil {
@@ -93,6 +100,17 @@ func ImportDatabaseMigration(c *gin.Context) {
 	utils.OkDetailed(c, "迁移任务已启动", gin.H{
 		"taskId": task.ID,
 	})
+}
+
+func copyDatabaseMigrationUpload(dst io.Writer, src io.Reader, limit int64) error {
+	written, err := io.Copy(dst, io.LimitReader(src, limit+1))
+	if err != nil {
+		return fmt.Errorf("保存迁移文件失败: %w", err)
+	}
+	if written > limit {
+		return fmt.Errorf("迁移文件超过大小限制 %d bytes", limit)
+	}
+	return nil
 }
 
 func parseFormBool(raw string) bool {

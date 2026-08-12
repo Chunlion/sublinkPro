@@ -72,6 +72,20 @@ func TestTrojanRejectsInvalidCertificateFingerprint(t *testing.T) {
 	assertEqualString(t, "ProxyInvalidFingerprintDropped", "", proxy.Fingerprint)
 }
 
+func TestTrojanDefaultPortIsUsedInGeneratedName(t *testing.T) {
+	decoded, err := DecodeTrojanURL("trojan://password@example.com")
+	if err != nil {
+		t.Fatalf("decode Trojan: %v", err)
+	}
+	assertEqualString(t, "Name", "example.com:443", decoded.Name)
+}
+
+func TestTrojanRejectsOutOfRangePort(t *testing.T) {
+	if _, err := DecodeTrojanURL("trojan://password@example.com:70000"); err == nil {
+		t.Fatal("expected Trojan port to be rejected")
+	}
+}
+
 // TestTrojanNameModification 测试 Trojan 名称修改
 func TestTrojanNameModification(t *testing.T) {
 	original := Trojan{

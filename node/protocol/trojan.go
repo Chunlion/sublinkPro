@@ -210,11 +210,10 @@ func DecodeTrojanURL(s string) (Trojan, error) {
 	}
 	password := u.User.Username()
 	hostname := u.Hostname()
-	rawPort := u.Port()
-	if rawPort == "" {
-		rawPort = "443"
+	port, rawPort, err := parseURLPort(u, 443)
+	if err != nil {
+		return Trojan{}, err
 	}
-	port, _ := strconv.Atoi(rawPort)
 	peer := u.Query().Get("peer")
 	allowInsecure := u.Query().Get("allowInsecure")
 	sni := u.Query().Get("sni")
@@ -253,7 +252,7 @@ func DecodeTrojanURL(s string) (Trojan, error) {
 	name := u.Fragment
 	// 如果没有设置name,则使用hostname:port
 	if name == "" {
-		name = hostname + ":" + u.Port()
+		name = hostname + ":" + rawPort
 	}
 	if utils.CheckEnvironment() {
 		fmt.Println("password:", password)

@@ -322,7 +322,10 @@ func DecodeSSURL(s string) (Ss, error) {
 	if err != nil {
 		return Ss{}, fmt.Errorf("invalid SS address: %w", err)
 	}
-	port, _ := strconv.Atoi(rawPort)
+	port, _, err := parsePort(rawPort, 0)
+	if err != nil {
+		return Ss{}, err
+	}
 	server := utils.UnwrapIPv6Host(host)
 	cipher := strings.Split(param, ":")[0]
 	password := strings.Replace(param, cipher+":", "", 1)

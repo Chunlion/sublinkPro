@@ -105,11 +105,10 @@ func DecodeHY2URL(s string) (HY2, error) {
 	}
 	password := u.User.Username()
 	server := u.Hostname()
-	rawPort := u.Port()
-	if rawPort == "" {
-		rawPort = "443"
+	port, rawPort, err := parseURLPort(u, 443)
+	if err != nil {
+		return HY2{}, err
 	}
-	port, _ := strconv.Atoi(rawPort)
 	insecure, _ := strconv.Atoi(u.Query().Get("insecure"))
 	auth := u.Query().Get("auth")
 	if auth == "" {
@@ -131,7 +130,7 @@ func DecodeHY2URL(s string) (HY2, error) {
 	name := u.Fragment
 	// 如果没有设置 Name，则使用 Host:Port 作为 Fragment
 	if name == "" {
-		name = server + ":" + u.Port()
+		name = server + ":" + rawPort
 	}
 	if utils.CheckEnvironment() {
 		fmt.Println("password:", password)

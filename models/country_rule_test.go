@@ -919,3 +919,17 @@ func TestSyncCountryRulesFromText_EmptyText(t *testing.T) {
 		t.Errorf("Expected 0 rules in database, got %d", count)
 	}
 }
+
+func TestSyncCountryRulesFromTextReturnsErrorAfterPanic(t *testing.T) {
+	setupTestDB(t)
+	if err := database.DB.Callback().Create().Before("gorm:create").Register("test:panic", func(*gorm.DB) {
+		panic("create failed")
+	}); err != nil {
+		t.Fatalf("register create callback: %v", err)
+	}
+
+	_, _, _, err := SyncCountryRulesFromText("ZZ Test 100 true ^Test$")
+	if err == nil {
+		t.Fatal("expected recovered panic to be returned as an error")
+	}
+}

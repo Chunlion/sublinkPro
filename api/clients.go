@@ -87,12 +87,30 @@ var (
 	syntheticTemplateErr  error
 )
 
+const remoteSubscriptionResponseSizeLimit int64 = 16 << 20
+
+var remoteSubscriptionHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 func getRemoteSubscription(ctx context.Context, link string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
 		return nil, err
 	}
-	return http.DefaultClient.Do(req)
+	return remoteSubscriptionHTTPClient.Do(req)
+}
+
+func readRemoteSubscription(resp *http.Response) ([]byte, error) {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("HTTP 状态码 %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, remoteSubscriptionResponseSizeLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > remoteSubscriptionResponseSizeLimit {
+		return nil, fmt.Errorf("远程订阅响应超过 %d bytes", remoteSubscriptionResponseSizeLimit)
+	}
+	return body, nil
 }
 
 func setResolvedSubscriptionName(c *gin.Context, subName string) {
@@ -560,8 +578,12 @@ func renderPreparedV2ray(c *gin.Context, prepared preparedClientResponse) {
 				utils.Error("Error getting link: %v", err)
 				continue
 			}
-			defer func() { _ = resp.Body.Close() }()
-			body, _ := io.ReadAll(resp.Body)
+			body, readErr := readRemoteSubscription(resp)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				utils.Error("Error reading link: %v", readErr)
+				continue
+			}
 			nodes := utils.Base64Decode(string(body))
 			compatibleLinks := filterV2rayCompatibleLinks(strings.Split(nodes, "\n"))
 			if len(compatibleLinks) > 0 {
@@ -728,8 +750,12 @@ func buildPreparedMihomoYAML(c *gin.Context, prepared preparedClientResponse) (m
 				utils.Error("获取包含链接失败: %v", err)
 				continue
 			}
-			defer func() { _ = resp.Body.Close() }()
-			body, _ := io.ReadAll(resp.Body)
+			body, readErr := readRemoteSubscription(resp)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				utils.Error("读取包含链接失败: %v", readErr)
+				continue
+			}
 			nodes := utils.Base64Decode(string(body))
 			links := strings.Split(nodes, "\n")
 			for _, link := range links {
@@ -892,8 +918,12 @@ func renderPreparedSurge(c *gin.Context, prepared preparedClientResponse) {
 				utils.Error("Error getting link: %v", err)
 				continue
 			}
-			defer func() { _ = resp.Body.Close() }()
-			body, _ := io.ReadAll(resp.Body)
+			body, readErr := readRemoteSubscription(resp)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				utils.Error("Error reading link: %v", readErr)
+				continue
+			}
 			nodes := utils.Base64Decode(string(body))
 			links := strings.Split(nodes, "\n")
 			urls = append(urls, links...)

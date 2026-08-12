@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"sublink/dto"
@@ -439,8 +440,10 @@ func AirportPull(c *gin.Context) {
 // 2. 不提供 ids 参数：拉取所有已启用的机场
 func AirportPullAll(c *gin.Context) {
 	var req dto.AirportPullAllRequest
-	// 尝试解析请求体，如果没有请求体或解析失败，req.IDs 为 nil/empty
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		utils.FailWithMsg(c, "参数错误")
+		return
+	}
 
 	var airportsToProcess []models.Airport
 

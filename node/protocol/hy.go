@@ -86,11 +86,10 @@ func DecodeHYURL(s string) (HY, error) {
 		return HY{}, fmt.Errorf("非hy协议: %s", s)
 	}
 	server := u.Hostname()
-	rawPort := u.Port()
-	if rawPort == "" {
-		rawPort = "443"
+	port, rawPort, err := parseURLPort(u, 443)
+	if err != nil {
+		return HY{}, err
 	}
-	port, _ := strconv.Atoi(rawPort)
 	insecure, _ := strconv.Atoi(u.Query().Get("insecure"))
 	peer := u.Query().Get("peer")
 	auth := u.Query().Get("auth")
@@ -105,7 +104,7 @@ func DecodeHYURL(s string) (HY, error) {
 	// 如果没有设置 Name，则使用 Fragment 作为 Name
 	name := u.Fragment
 	if name == "" {
-		name = server + ":" + u.Port()
+		name = server + ":" + rawPort
 	}
 	if utils.CheckEnvironment() {
 		fmt.Println("server:", server)

@@ -28,6 +28,11 @@ import (
 
 var databaseMigrationRunning atomic.Bool
 
+const (
+	databaseMigrationArchiveFileLimit       = 10000
+	databaseMigrationExtractSizeLimit int64 = 2 << 30
+)
+
 // DatabaseMigrationOptions 控制导入时是否包含可选数据。
 type DatabaseMigrationOptions struct {
 	IncludeSubLogs    bool `json:"includeSubLogs"`
@@ -493,7 +498,7 @@ func looksLikeSQLiteFile(path string) bool {
 	return string(header) == "SQLite format 3\x00"
 }
 
-func extractMigrationZip(zipPath string) (string, error) {
+func extractMigrationZip(zipPath string) (tempDir string, err error) {
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return "", fmt.Errorf("读取迁移压缩包失败: %w", err)
@@ -505,11 +510,21 @@ func extractMigrationZip(zipPath string) (string, error) {
 		return "", err
 	}
 
-	tempDir, err := os.MkdirTemp(tempRoot, "bundle-*")
+	tempDir, err = os.MkdirTemp(tempRoot, "bundle-*")
 	if err != nil {
 		return "", fmt.Errorf("创建迁移临时目录失败: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(tempDir)
+		}
+	}()
 
+	if err := validateMigrationArchive(reader.File); err != nil {
+		return "", err
+	}
+
+	var extractedSize int64
 	for _, file := range reader.File {
 		cleanName := filepath.Clean(filepath.FromSlash(file.Name))
 		if cleanName == "." || strings.HasPrefix(cleanName, "..") {
@@ -542,11 +557,19 @@ func extractMigrationZip(zipPath string) (string, error) {
 			return "", fmt.Errorf("创建迁移临时文件失败: %w", err)
 		}
 
-		if _, err := io.Copy(dst, src); err != nil {
+		remainingSize := databaseMigrationExtractSizeLimit - extractedSize
+		written, copyErr := io.Copy(dst, io.LimitReader(src, remainingSize+1))
+		if copyErr != nil {
 			_ = dst.Close()
 			_ = src.Close()
-			return "", fmt.Errorf("解压迁移文件失败: %w", err)
+			return "", fmt.Errorf("解压迁移文件失败: %w", copyErr)
 		}
+		if written > remainingSize {
+			_ = dst.Close()
+			_ = src.Close()
+			return "", fmt.Errorf("迁移压缩包实际解压大小超过限制 %d bytes", databaseMigrationExtractSizeLimit)
+		}
+		extractedSize += written
 
 		if err := dst.Close(); err != nil {
 			_ = src.Close()
@@ -558,6 +581,20 @@ func extractMigrationZip(zipPath string) (string, error) {
 	}
 
 	return tempDir, nil
+}
+
+func validateMigrationArchive(files []*zip.File) error {
+	if len(files) > databaseMigrationArchiveFileLimit {
+		return fmt.Errorf("迁移压缩包文件数量超过限制 %d", databaseMigrationArchiveFileLimit)
+	}
+	var extractedSize uint64
+	for _, file := range files {
+		if file.UncompressedSize64 > uint64(databaseMigrationExtractSizeLimit)-extractedSize {
+			return fmt.Errorf("迁移压缩包解压大小超过限制 %d bytes", databaseMigrationExtractSizeLimit)
+		}
+		extractedSize += file.UncompressedSize64
+	}
+	return nil
 }
 
 func ensureDatabaseMigrationTempRoot() (string, error) {

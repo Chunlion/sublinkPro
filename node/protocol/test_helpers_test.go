@@ -5,6 +5,41 @@ import (
 	"testing"
 )
 
+func TestParsePortRejectsInvalidValues(t *testing.T) {
+	tests := []string{"0", "65536", "invalid"}
+	for _, raw := range tests {
+		if _, _, err := parsePort(raw, 443); err == nil {
+			t.Fatalf("port %q should be rejected", raw)
+		}
+	}
+
+	port, raw, err := parsePort("", 443)
+	if err != nil || port != 443 || raw != "443" {
+		t.Fatalf("default port = (%d, %q, %v), want (443, %q, nil)", port, raw, err, "443")
+	}
+}
+
+func TestURLDecodersRejectOutOfRangePorts(t *testing.T) {
+	tests := []struct {
+		name   string
+		decode func() error
+	}{
+		{name: "AnyTLS", decode: func() error { _, err := DecodeAnyTLSURL("anytls://password@example.com:70000"); return err }},
+		{name: "HTTP", decode: func() error { _, err := DecodeHTTPURL("http://example.com:70000"); return err }},
+		{name: "Mieru", decode: func() error { _, err := DecodeMieruURL("mieru://user:password@example.com:70000"); return err }},
+		{name: "Snell", decode: func() error { _, err := DecodeSnellURL("snell://psk@example.com:70000"); return err }},
+		{name: "SOCKS5", decode: func() error { _, err := DecodeSocks5URL("socks5://example.com:70000"); return err }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.decode(); err == nil {
+				t.Fatal("expected out-of-range port to be rejected")
+			}
+		})
+	}
+}
+
 // 测试辅助函数 - 用于验证编解码结果
 
 // assertEqualString 验证两个字符串相等

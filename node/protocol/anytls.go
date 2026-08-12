@@ -71,7 +71,7 @@ func DecodeAnyTLSURL(s string) (AnyTLS, error) {
 	if rawPort == "" {
 		rawPort = "443"
 	}
-	anyTLS.Port, err = strconv.Atoi(rawPort)
+	anyTLS.Port, _, err = parsePort(rawPort, 0)
 	if err != nil {
 		fmt.Println("AnyTLS Port conversion failed:", err)
 		return AnyTLS{}, err

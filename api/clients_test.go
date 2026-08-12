@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +21,46 @@ import (
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
+
+func TestReadRemoteSubscriptionRejectsInvalidResponses(t *testing.T) {
+	tests := []struct {
+		name     string
+		response *http.Response
+	}{
+		{
+			name: "non-success status",
+			response: &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(strings.NewReader("upstream error")),
+			},
+		},
+		{
+			name: "oversized body",
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(io.LimitReader(zeroReader{}, remoteSubscriptionResponseSizeLimit+1)),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() { _ = tt.response.Body.Close() }()
+			if _, err := readRemoteSubscription(tt.response); err == nil {
+				t.Fatal("expected response to be rejected")
+			}
+		})
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
 
 const testClashTemplate = `port: 7890
 proxies: []

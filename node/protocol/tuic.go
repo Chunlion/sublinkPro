@@ -70,11 +70,10 @@ func DecodeTuicURL(s string) (Tuic, error) {
 	// log.Println(password)
 	// password = Base64Decode2(password)
 	server := u.Hostname()
-	rawPort := u.Port()
-	if rawPort == "" {
-		rawPort = "443"
+	port, rawPort, err := parseURLPort(u, 443)
+	if err != nil {
+		return Tuic{}, err
 	}
-	port, _ := strconv.Atoi(rawPort)
 	Congestioncontrol := u.Query().Get("congestion_control")
 	alpns := u.Query().Get("alpn")
 	alpn := strings.Split(alpns, ",")
@@ -94,7 +93,7 @@ func DecodeTuicURL(s string) (Tuic, error) {
 	name := u.Fragment
 	// 如果没有设置 Name，则使用 Host:Port 作为 Fragment
 	if name == "" {
-		name = server + ":" + u.Port()
+		name = server + ":" + rawPort
 	}
 	version := 5 // 默认版本 暂时只考虑支持v5
 	token := ""

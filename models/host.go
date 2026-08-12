@@ -229,11 +229,22 @@ func SyncHostsFromText(text string) (added, updated, deleted int, err error) {
 
 	// 开始事务
 	tx := database.DB.Begin()
+	if tx.Error != nil {
+		return 0, 0, 0, tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			_ = tx.Rollback().Error
+			added, updated, deleted = 0, 0, 0
+			err = fmt.Errorf("同步 Host 失败: %v", r)
 		}
 	}()
+
+	type cacheUpdate struct {
+		action string
+		host   Host
+	}
+	var cacheUpdates []cacheUpdate
 
 	// 处理新增和更新
 	for _, newHost := range newHosts {
@@ -253,7 +264,7 @@ func SyncHostsFromText(text string) (added, updated, deleted int, err error) {
 					tx.Rollback()
 					return 0, 0, 0, err
 				}
-				hostCache.Set(existing.ID, existing)
+				cacheUpdates = append(cacheUpdates, cacheUpdate{action: "set", host: existing})
 				updated++
 			}
 		} else {
@@ -264,7 +275,7 @@ func SyncHostsFromText(text string) (added, updated, deleted int, err error) {
 				tx.Rollback()
 				return 0, 0, 0, err
 			}
-			hostCache.Set(newHost.ID, newHost)
+			cacheUpdates = append(cacheUpdates, cacheUpdate{action: "set", host: newHost})
 			added++
 		}
 	}
@@ -276,13 +287,21 @@ func SyncHostsFromText(text string) (added, updated, deleted int, err error) {
 				tx.Rollback()
 				return 0, 0, 0, err
 			}
-			hostCache.Delete(host.ID)
+			cacheUpdates = append(cacheUpdates, cacheUpdate{action: "delete", host: host})
 			deleted++
 		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		return 0, 0, 0, err
+	}
+
+	for _, update := range cacheUpdates {
+		if update.action == "set" {
+			hostCache.Set(update.host.ID, update.host)
+		} else {
+			hostCache.Delete(update.host.ID)
+		}
 	}
 
 	// 有变更时通知外部模块同步

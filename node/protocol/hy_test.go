@@ -124,6 +124,29 @@ func TestHY2RejectsInvalidCertificateFingerprint(t *testing.T) {
 	assertEqualString(t, "ProxyInvalidFingerprintDropped", "", proxy.Fingerprint)
 }
 
+func TestHysteriaDefaultPortIsUsedInGeneratedName(t *testing.T) {
+	hy, err := DecodeHYURL("hy://example.com?auth=test")
+	if err != nil {
+		t.Fatalf("decode HY: %v", err)
+	}
+	assertEqualString(t, "HYName", "example.com:443", hy.Name)
+
+	hy2, err := DecodeHY2URL("hy2://password@example.com")
+	if err != nil {
+		t.Fatalf("decode HY2: %v", err)
+	}
+	assertEqualString(t, "HY2Name", "example.com:443", hy2.Name)
+}
+
+func TestHysteriaRejectsOutOfRangePort(t *testing.T) {
+	if _, err := DecodeHYURL("hy://example.com:70000"); err == nil {
+		t.Fatal("expected HY port to be rejected")
+	}
+	if _, err := DecodeHY2URL("hy2://password@example.com:70000"); err == nil {
+		t.Fatal("expected HY2 port to be rejected")
+	}
+}
+
 // TestHY2NameModification 测试 Hysteria2 名称修改
 func TestHY2NameModification(t *testing.T) {
 	original := HY2{

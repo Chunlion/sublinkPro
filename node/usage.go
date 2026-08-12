@@ -179,17 +179,22 @@ type UsageResult struct {
 	Error       error
 }
 
+const airportUsageConcurrencyLimit = 8
+
 // BatchUpdateAirportUsage 批量更新多个机场的用量信息
 // 并发获取每个机场的用量信息并更新到数据库
 // 返回各机场的用量结果映射
 func BatchUpdateAirportUsage(airportIDs []int) map[int]*UsageResult {
 	var wg sync.WaitGroup
 	var resultsMap sync.Map
+	semaphore := make(chan struct{}, airportUsageConcurrencyLimit)
 
 	for _, id := range airportIDs {
+		semaphore <- struct{}{}
 		wg.Add(1)
 		go func(airportID int) {
 			defer wg.Done()
+			defer func() { <-semaphore }()
 
 			airport, err := models.GetAirportByID(airportID)
 			if err != nil {

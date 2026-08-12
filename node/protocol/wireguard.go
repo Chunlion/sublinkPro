@@ -93,11 +93,10 @@ func DecodeWireGuardURL(s string) (WireGuard, error) {
 
 	// 服务器和端口
 	server := u.Hostname()
-	rawPort := u.Port()
-	if rawPort == "" {
-		rawPort = "51820" // WireGuard 默认端口
+	port, _, err := parseURLPort(u, 51820)
+	if err != nil {
+		return WireGuard{}, err
 	}
-	port, _ := strconv.Atoi(rawPort)
 
 	// 查询参数
 	publicKey := u.Query().Get("publickey")

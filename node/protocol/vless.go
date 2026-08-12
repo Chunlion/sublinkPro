@@ -273,20 +273,18 @@ func DecodeVLESSURL(s string) (VLESS, error) {
 	hostname := utils.UnwrapIPv6Host(u.Hostname())
 
 	// 处理端口
-	rawPort := u.Port()
-	if rawPort == "" {
-		security := u.Query().Get("security")
-		if security == "none" || security == "" {
-			rawPort = "80"
-		} else {
-			rawPort = "443"
-		}
+	defaultPort := 443
+	security := u.Query().Get("security")
+	if security == "none" || security == "" {
+		defaultPort = 80
 	}
-	port, _ := strconv.Atoi(rawPort)
+	port, rawPort, err := parseURLPort(u, defaultPort)
+	if err != nil {
+		return VLESS{}, err
+	}
 
 	// 解析基本参数
 	encryption := u.Query().Get("encryption")
-	security := u.Query().Get("security")
 	types := u.Query().Get("type")
 	flow := u.Query().Get("flow")
 	headerType := u.Query().Get("headerType")

@@ -139,7 +139,8 @@ export async function streamTemplateAIEditSession(data, handlers = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem('accessToken');
-    window.location.href = '/login';
+    const basePath = window.__SUBLINK_CONFIG__?.basePath || import.meta.env.VITE_APP_BASE_NAME || '/';
+    window.location.href = basePath.replace(/\/+$/, '') + '/login';
   }
 
   if (!response.ok) {

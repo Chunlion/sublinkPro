@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -1717,6 +1718,49 @@ func setupSubscriptionCountryBackfillTestDB(t *testing.T) {
 		database.IsInitialized = oldInitialized
 		testutil.CloseDB(t, db)
 	})
+}
+
+type panicTaskReporter struct{}
+
+func (panicTaskReporter) UpdateTotal(int)                 { panic("reporter failed") }
+func (panicTaskReporter) ReportProgress(int, string, any) {}
+func (panicTaskReporter) ReportComplete(string, any)      {}
+func (panicTaskReporter) ReportFail(string)               {}
+
+func TestScheduleClashToNodeLinksReturnsErrorAfterPanic(t *testing.T) {
+	setupSubscriptionCountryBackfillTestDB(t)
+
+	changedNodeIDs, err := scheduleClashToNodeLinks(context.Background(), 404, nil, "panic-test", panicTaskReporter{}, nil)
+	if err == nil {
+		t.Fatal("expected recovered panic to be returned as an error")
+	}
+	if changedNodeIDs != nil {
+		t.Fatalf("changed node IDs = %v, want nil", changedNodeIDs)
+	}
+}
+
+func TestLoadClashConfigRejectsOversizedRootSubscription(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		_, _ = io.CopyN(w, repeatingByteReader{}, subscriptionResponseSizeLimit+1)
+	}))
+	defer server.Close()
+
+	_, _, err := LoadClashConfigFromURLWithReporter(
+		context.Background(), 1, server.URL, "oversized", false, "", "", nil, nil, false, false,
+	)
+	if err == nil {
+		t.Fatal("expected oversized root subscription to fail")
+	}
+}
+
+type repeatingByteReader struct{}
+
+func (repeatingByteReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	return len(p), nil
 }
 
 func createCountryBackfillRule(t *testing.T, code string, name string, pattern string) {

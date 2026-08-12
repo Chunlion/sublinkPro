@@ -131,6 +131,16 @@ func TestDecodeHTTPURL(t *testing.T) {
 	}
 }
 
+func TestHTTPDefaultPortIsUsedInGeneratedName(t *testing.T) {
+	decoded, err := DecodeHTTPURL("https://example.com")
+	if err != nil {
+		t.Fatalf("decode HTTPS: %v", err)
+	}
+	if decoded.Name != "example.com:443" {
+		t.Fatalf("name = %q, want example.com:443", decoded.Name)
+	}
+}
+
 func TestEncodeHTTPURL(t *testing.T) {
 	tests := []struct {
 		name string

@@ -508,9 +508,14 @@ func SyncCountryRulesFromText(text string) (added, updated, deleted int, err err
 
 	// 开始事务
 	tx := database.DB.Begin()
+	if tx.Error != nil {
+		return 0, 0, 0, tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			_ = tx.Rollback().Error
+			added, updated, deleted = 0, 0, 0
+			err = fmt.Errorf("同步国家规则失败: %v", r)
 		}
 	}()
 

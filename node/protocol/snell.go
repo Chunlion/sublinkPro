@@ -69,7 +69,7 @@ func DecodeSnellURL(s string) (Snell, error) {
 	rawPort := u.Port()
 	port := 0
 	if rawPort != "" {
-		port, err = strconv.Atoi(rawPort)
+		port, _, err = parsePort(rawPort, 0)
 		if err != nil {
 			return Snell{}, fmt.Errorf("Snell port conversion failed: %w", err)
 		}

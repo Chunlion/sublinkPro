@@ -49,6 +49,8 @@ func (n *NoOpTaskReporter) ReportFail(errMsg string)                            
 const (
 	// providerResponseSizeLimit 限制单个 provider 响应体大小，兼顾大型机场节点列表与内存上界。
 	providerResponseSizeLimit int64 = 16 << 20
+	// subscriptionResponseSizeLimit 限制根订阅响应体，避免异常上游耗尽内存。
+	subscriptionResponseSizeLimit int64 = 32 << 20
 	// selectedProviderCountLimit 限制单次订阅展开的 provider 数量，避免异常配置触发无界外部请求。
 	selectedProviderCountLimit = 64
 )
@@ -639,7 +641,7 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 		}
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, subscriptionResponseSizeLimit+1))
 	if err != nil {
 		utils.Error("URL %s，读取Clash配置失败:  %v", urlStr, err)
 		// 发送读取失败通知
@@ -653,6 +655,11 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 				"error":  err.Error(),
 			},
 		})
+		return nil, nil, err
+	}
+	if int64(len(data)) > subscriptionResponseSizeLimit {
+		err = fmt.Errorf("订阅响应超过大小限制 %d bytes", subscriptionResponseSizeLimit)
+		utils.Error("URL %s，%v", urlStr, err)
 		return nil, nil, err
 	}
 
@@ -698,7 +705,7 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 // proxys: 代理节点列表
 // subName: 订阅名称
 // usageInfo: 订阅用量信息 (可选)
-func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Proxy, subName string, reporter TaskReporter, usageInfo *UsageInfo) ([]int, error) {
+func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Proxy, subName string, reporter TaskReporter, usageInfo *UsageInfo) (changedNodeIDs []int, err error) {
 	if reporter == nil {
 		reporter = &NoOpTaskReporter{}
 	}
@@ -713,7 +720,16 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	defer func() {
 		if r := recover(); r != nil {
 			utils.Error("订阅更新任务执行过程中发生严重错误: %v", r)
-			reporter.ReportFail(fmt.Sprintf("任务异常: %v", r))
+			changedNodeIDs = nil
+			err = fmt.Errorf("订阅更新任务异常: %v", r)
+			func() {
+				defer func() {
+					if reportPanic := recover(); reportPanic != nil {
+						utils.Error("订阅更新任务失败状态上报异常: %v", reportPanic)
+					}
+				}()
+				reporter.ReportFail(err.Error())
+			}()
 		}
 	}()
 
@@ -1078,7 +1094,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 	utils.Info("✅订阅【%s】节点同步完成，总节点【%d】个，成功处理【%d】个，新增节点【%d】个，更新节点【%d】个，已存在节点【%d】个，删除失效【%d】个", subName, len(proxys), addSuccessCount+skipCount, addSuccessCount, actualUpdateCount, skipCount, deleteCount)
 
 	// 收集变更和新增的节点ID（用于更新后仅检测变化节点的功能）
-	changedNodeIDs := make([]int, 0, addSuccessCount+actualUpdateCount)
+	changedNodeIDs = make([]int, 0, addSuccessCount+actualUpdateCount)
 	for _, n := range nodesToAdd {
 		if n.ID > 0 {
 			changedNodeIDs = append(changedNodeIDs, n.ID)

@@ -127,3 +127,18 @@ func TestAirportAddPersistsUpdateAfterDetectSettings(t *testing.T) {
 		t.Fatal("expected update_after_detect_changed_only to be stored as true after add")
 	}
 }
+
+func TestAirportPullAllRejectsMalformedJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/airports/pull-all", bytes.NewBufferString("{"))
+	ginContext.Request.Header.Set("Content-Type", "application/json")
+
+	AirportPullAll(ginContext)
+
+	response := decodeAirportAPIResponse(t, recorder)
+	if response.Code == 200 {
+		t.Fatalf("malformed JSON response code = %d, want failure", response.Code)
+	}
+}

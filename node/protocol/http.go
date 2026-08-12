@@ -124,13 +124,6 @@ func DecodeHTTPURL(s string) (HTTP, error) {
 
 	var httpProxy HTTP
 
-	// 解析名称
-	name := u.Fragment
-	if name == "" {
-		name = u.Host
-	}
-	httpProxy.Name = name
-
 	// 解析服务器地址和端口
 	host, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
@@ -148,10 +141,21 @@ func DecodeHTTPURL(s string) (HTTP, error) {
 	if rawPort == "" {
 		rawPort = defaultHTTPProxyPort(u.Scheme == "https")
 	}
-	httpProxy.Port, err = strconv.Atoi(rawPort)
-	if err != nil {
-		return HTTP{}, fmt.Errorf("port conversion failed: %v", err)
+	defaultPort := 80
+	if u.Scheme == "https" {
+		defaultPort = 443
 	}
+	httpProxy.Port, rawPort, err = parsePort(rawPort, defaultPort)
+	if err != nil {
+		return HTTP{}, err
+	}
+
+	// 解析名称
+	name := u.Fragment
+	if name == "" {
+		name = formatURLHostPort(host, rawPort)
+	}
+	httpProxy.Name = name
 
 	// 解析用户名和密码
 	httpProxy.Password, _ = u.User.Password()
