@@ -407,7 +407,7 @@ func DecodeClash(proxys []Proxy, yamlfile string, customGroups ...[]CustomProxyG
 		if cached, ok := cache.GetTemplateContent(filename); ok {
 			data = []byte(cached)
 		} else {
-			data, err = os.ReadFile(yamlfile)
+			data, err = os.ReadFile(yamlfile) // #nosec G304 -- DecodeClash intentionally accepts an administrator-selected local template path.
 			if err != nil {
 				utils.Error("error: %v", err)
 				return nil, err

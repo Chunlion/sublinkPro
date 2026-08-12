@@ -520,7 +520,7 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLSVerify},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLSVerify}, // #nosec G402 -- opt-in compatibility setting; verification remains enabled by default.
 		},
 	}
 
@@ -571,7 +571,7 @@ func LoadClashConfigFromURLWithReporter(ctx context.Context, id int, urlStr stri
 						// 使用 mihomo adapter 建立连接
 						return proxyAdapter.DialContext(ctx, metadata)
 					},
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLSVerify},
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLSVerify}, // #nosec G402 -- opt-in compatibility setting; verification remains enabled by default.
 				}
 			}
 		} else {

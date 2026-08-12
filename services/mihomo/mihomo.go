@@ -59,7 +59,7 @@ func GetMihomoAdapter(nodeLink string) (constant.Proxy, error) {
 
 	// 2. Convert Proxy struct to map[string]interface{} via YAML
 	// This is because adapter.ParseProxy expects a map
-	yamlBytes, err := yaml.Marshal(proxyStruct)
+	yamlBytes, err := yaml.Marshal(proxyStruct) // #nosec G117 -- transient in-memory conversion required by mihomo; bytes are not logged or persisted.
 	if err != nil {
 		return nil, fmt.Errorf("marshal proxy error: %v", err)
 	}

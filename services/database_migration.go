@@ -471,7 +471,7 @@ func prepareDatabaseMigrationSource(uploadPath string) (*databaseMigrationSource
 }
 
 func looksLikeZipFile(path string) bool {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is the server-generated migration upload path.
 	if err != nil {
 		return false
 	}
@@ -485,7 +485,7 @@ func looksLikeZipFile(path string) bool {
 }
 
 func looksLikeSQLiteFile(path string) bool {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is the server-generated migration upload path.
 	if err != nil {
 		return false
 	}
@@ -536,13 +536,13 @@ func extractMigrationZip(zipPath string) (tempDir string, err error) {
 		}
 
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(targetPath, 0755); err != nil {
+			if err := os.MkdirAll(targetPath, 0700); err != nil {
 				return "", fmt.Errorf("创建迁移目录失败: %w", err)
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0700); err != nil {
 			return "", fmt.Errorf("创建迁移目录失败: %w", err)
 		}
 
@@ -551,7 +551,7 @@ func extractMigrationZip(zipPath string) (tempDir string, err error) {
 			return "", fmt.Errorf("读取迁移压缩包文件失败: %w", err)
 		}
 
-		dst, err := os.Create(targetPath)
+		dst, err := os.Create(targetPath) // #nosec G304 -- targetPath is validated against tempDir before creation.
 		if err != nil {
 			_ = src.Close()
 			return "", fmt.Errorf("创建迁移临时文件失败: %w", err)
@@ -599,7 +599,7 @@ func validateMigrationArchive(files []*zip.File) error {
 
 func ensureDatabaseMigrationTempRoot() (string, error) {
 	tempRoot := filepath.Join(config.GetDBPath(), ".tmp", "database-migration")
-	if err := os.MkdirAll(tempRoot, 0755); err != nil {
+	if err := os.MkdirAll(tempRoot, 0700); err != nil {
 		return "", fmt.Errorf("创建迁移临时目录失败: %w", err)
 	}
 	return tempRoot, nil
@@ -1419,10 +1419,10 @@ func restoreTemplateDirectory(sourceDir string) error {
 		targetPath := filepath.Join(targetDir, relativePath)
 
 		if info.IsDir() {
-			return os.MkdirAll(targetPath, 0755)
+			return os.MkdirAll(targetPath, 0700)
 		}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0700); err != nil {
 			return err
 		}
 		return copyFile(path, targetPath)
@@ -1430,13 +1430,13 @@ func restoreTemplateDirectory(sourceDir string) error {
 }
 
 func copyFile(sourcePath, targetPath string) error {
-	sourceFile, err := os.Open(sourcePath)
+	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- sourcePath is produced by the validated migration extraction walk.
 	if err != nil {
 		return err
 	}
 	defer func() { _ = sourceFile.Close() }()
 
-	targetFile, err := os.Create(targetPath)
+	targetFile, err := os.Create(targetPath) // #nosec G304 -- targetPath is derived from the fixed template restore root.
 	if err != nil {
 		return err
 	}

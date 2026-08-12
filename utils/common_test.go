@@ -2,6 +2,8 @@ package utils
 
 import (
 	"encoding/base64"
+	"math"
+	"strconv"
 	"testing"
 )
 
@@ -64,5 +66,17 @@ func TestIsIpInCidrSupportsExactIPsAndCommaSeparatedEntries(t *testing.T) {
 
 	if !IsIpInCidr("10.10.2.42", allowList) {
 		t.Fatalf("expected CIDR match to be allowed")
+	}
+}
+
+func TestEncryptUserIDCompactRejectsUnsupportedRange(t *testing.T) {
+	key := []byte("test-key")
+	if _, err := EncryptUserIDCompact(-1, key); err == nil {
+		t.Fatal("expected negative user ID to be rejected")
+	}
+	if strconv.IntSize == 64 {
+		if _, err := EncryptUserIDCompact(int(int64(math.MaxUint32)+1), key); err == nil {
+			t.Fatal("expected user ID above uint32 to be rejected")
+		}
 	}
 }

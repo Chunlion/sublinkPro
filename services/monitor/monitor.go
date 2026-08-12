@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -95,7 +96,12 @@ func GetSystemStats() SystemStats {
 	// 上次GC时间转换
 	lastGCTime := int64(0)
 	if memStats.LastGC > 0 {
-		lastGCTime = int64(memStats.LastGC / 1e6) // 转换为毫秒
+		lastGCMillis := memStats.LastGC / 1e6
+		if lastGCMillis > math.MaxInt64 {
+			lastGCTime = math.MaxInt64
+		} else {
+			lastGCTime = int64(lastGCMillis) // #nosec G115 -- bounded by math.MaxInt64 above.
+		}
 	}
 
 	return SystemStats{
@@ -527,10 +533,8 @@ func FormatBytes(bytes uint64) string {
 }
 
 func formatBytesValue(value float64, unit string) string {
-	if value == float64(int64(value)) {
-		return string(rune(int64(value))) + " " + unit
-	}
-	return string(rune(int64(value*100)/100)) + " " + unit
+	value = math.Round(value*100) / 100
+	return strconv.FormatFloat(value, 'f', -1, 64) + " " + unit
 }
 
 // FormatDuration 将秒数转换为人类可读的时长格式
@@ -551,17 +555,17 @@ func FormatDuration(seconds int64) string {
 }
 
 func formatDurationString(days, hours, minutes int64) string {
-	return string(rune(days)) + "天" + string(rune(hours)) + "时" + string(rune(minutes)) + "分"
+	return strconv.FormatInt(days, 10) + "天" + strconv.FormatInt(hours, 10) + "时" + strconv.FormatInt(minutes, 10) + "分"
 }
 
 func formatHoursMinutes(hours, minutes, secs int64) string {
-	return string(rune(hours)) + "时" + string(rune(minutes)) + "分" + string(rune(secs)) + "秒"
+	return strconv.FormatInt(hours, 10) + "时" + strconv.FormatInt(minutes, 10) + "分" + strconv.FormatInt(secs, 10) + "秒"
 }
 
 func formatMinutesSeconds(minutes, secs int64) string {
-	return string(rune(minutes)) + "分" + string(rune(secs)) + "秒"
+	return strconv.FormatInt(minutes, 10) + "分" + strconv.FormatInt(secs, 10) + "秒"
 }
 
 func formatSeconds(secs int64) string {
-	return string(rune(secs)) + "秒"
+	return strconv.FormatInt(secs, 10) + "秒"
 }

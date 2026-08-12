@@ -53,7 +53,7 @@ func ConfigInit() {
 
 	// 确保数据库目录存在
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(dbPath, 0755); err != nil {
+		if err := os.MkdirAll(dbPath, 0750); err != nil {
 			utils.Error("创建数据库目录失败: %v", err)
 		}
 	}
@@ -70,13 +70,13 @@ func ConfigInit() {
 			LoginBanDuration: config.DefaultLoginBanDuration,
 		}
 
-		data, err := yaml.Marshal(&defaultConfig)
+		data, err := yaml.Marshal(&defaultConfig) // #nosec G117 -- generated configuration is written with mode 0600.
 		if err != nil {
 			utils.Error("生成默认配置文件失败: %v", err)
 			return
 		}
 		data = []byte(configComment + string(data))
-		if err := os.WriteFile(configPath, data, 0644); err != nil {
+		if err := os.WriteFile(configPath, data, 0600); err != nil {
 			utils.Error("写入默认配置文件失败: %v", err)
 			return
 		}

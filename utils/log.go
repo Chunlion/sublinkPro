@@ -86,7 +86,7 @@ func InitLogger(logPath string, level string) {
 	logger.logPath = logPath
 
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(logPath, 0755); err != nil {
+		if err := os.MkdirAll(logPath, 0750); err != nil {
 			log.Printf("创建日志目录失败: %v", err)
 			return
 		}
@@ -95,7 +95,7 @@ func InitLogger(logPath string, level string) {
 	// 创建日志文件
 	t := time.Now().Format("2006-01-02") + ".log"
 	logFilePath := filepath.Join(logPath, t)
-	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // #nosec G304 -- filename is generated from the current date under the configured log directory.
 	if err != nil {
 		log.Printf("创建日志文件失败: %v", err)
 		return

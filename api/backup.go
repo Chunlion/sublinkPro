@@ -48,6 +48,11 @@ func Backup(c *gin.Context) {
 	for _, folder := range folders {
 		baseDir := folder.sourcePath
 		zipPrefix := folder.zipName
+		root, err := os.OpenRoot(baseDir)
+		if err != nil {
+			utils.FailWithMsg(c, "打开备份目录 '"+zipPrefix+"' 失败: "+err.Error())
+			return
+		}
 
 		// filepath.Walk 会遍历所有子文件和子目录
 		walkErr := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
@@ -95,7 +100,7 @@ func Backup(c *gin.Context) {
 
 			// 如果是文件，写入文件内容
 			if !info.IsDir() {
-				file, err := os.Open(path)
+				file, err := root.Open(relPath)
 				if err != nil {
 					return err // **[修正]** 只返回 error
 				}
@@ -115,10 +120,15 @@ func Backup(c *gin.Context) {
 			}
 			return nil
 		})
+		closeErr := root.Close()
 
 		// 在 Walk 循环结束后，统一检查错误
 		if walkErr != nil {
 			utils.FailWithMsg(c, "备份目录 '"+zipPrefix+"' 失败: "+walkErr.Error())
+			return
+		}
+		if closeErr != nil {
+			utils.FailWithMsg(c, "关闭备份目录 '"+zipPrefix+"' 失败: "+closeErr.Error())
 			return
 		}
 	}

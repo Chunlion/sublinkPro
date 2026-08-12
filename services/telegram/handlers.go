@@ -242,7 +242,7 @@ func truncateName(name string, maxLen int) string {
 // getCountryFlag 获取国家对应的国旗 Emoji
 func getCountryFlag(countryCode string) string {
 	countryCode = strings.ToUpper(countryCode)
-	if len(countryCode) != 2 {
+	if len(countryCode) != 2 || countryCode[0] < 'A' || countryCode[0] > 'Z' || countryCode[1] < 'A' || countryCode[1] > 'Z' {
 		return "🏳️"
 	}
 	// 特殊处理
@@ -252,8 +252,8 @@ func getCountryFlag(countryCode string) string {
 
 	// 转换逻辑：A=0x1F1E6
 	const regionalIndicatorBase = 0x1F1E6
-	first := rune(regionalIndicatorBase + int(countryCode[0]) - 'A')
-	second := rune(regionalIndicatorBase + int(countryCode[1]) - 'A')
+	first := rune(regionalIndicatorBase + int(countryCode[0]) - 'A')  // #nosec G115 -- bytes are validated as ASCII A-Z above.
+	second := rune(regionalIndicatorBase + int(countryCode[1]) - 'A') // #nosec G115 -- bytes are validated as ASCII A-Z above.
 	return string(first) + string(second)
 }
 

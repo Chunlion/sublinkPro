@@ -496,7 +496,7 @@ func (acc *AdaptiveConcurrencyController) MaybeAdjust() bool {
 		typeName, currentC, newC, reason,
 		metrics.CPUUsage*100, metrics.MemoryUsage*100, successRate*100)
 
-	atomic.StoreInt32(&acc.currentConcurrency, int32(newC))
+	atomic.StoreInt32(&acc.currentConcurrency, int32(newC)) // #nosec G115 -- newC is clamped to the controller's small configured maximum above.
 	acc.lastAdjustTime = time.Now()
 
 	// 广播唤醒等待的 goroutine（当并发数增加时，更多任务可以启动）

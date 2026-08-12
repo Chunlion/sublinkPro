@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"net"
 	"os"
 	"regexp"
@@ -68,6 +67,9 @@ func FromBase62(s string) ([]byte, error) {
 
 // EncryptUserIDCompact 使用更紧凑的方法加密用户ID (Base62版本)
 func EncryptUserIDCompact(userID int, key []byte) (string, error) {
+	if userID < 0 || big.NewInt(int64(userID)).BitLen() > 32 {
+		return "", fmt.Errorf("用户 ID 超出支持范围: %d", userID)
+	}
 
 	// 简单加密方法：将userID与唯一的密钥混合
 	// 使用SHA256生成派生密钥
@@ -76,7 +78,7 @@ func EncryptUserIDCompact(userID int, key []byte) (string, error) {
 
 	// 将userID转换为字节并与派生密钥混合
 	userIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(userIDBytes, uint32(userID))
+	binary.BigEndian.PutUint32(userIDBytes, uint32(userID)) // #nosec G115 -- userID is validated to fit uint32 above.
 
 	// 将userID与派生密钥的前4字节进行XOR操作
 	derivedKey := h.Sum(nil)[:4]
@@ -217,20 +219,6 @@ func Base64Decode2(s string) string {
 		decoded_str := string(decoded)
 		return decoded_str
 	}
-}
-
-// RandString 生成随机字符串
-func RandString(number int) string {
-	str := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
-	// 用 []byte 直接构造字符串
-	n := rand.Intn(number) + 1 // 防止生成空字符串，范围是1到31
-	randomString := make([]byte, n)
-	for i := 0; i < n; i++ {
-		randomIndex := rand.Intn(len(str))
-		randomString[i] = str[randomIndex]
-	}
-	Secret := string(randomString)
-	return Secret
 }
 
 func splitIPEntries(ipString string) []string {

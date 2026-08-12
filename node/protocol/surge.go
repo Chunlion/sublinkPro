@@ -117,7 +117,7 @@ func DecodeSurge(proxys, groups []string, file string) (string, error) {
 		if cached, ok := cache.GetTemplateContent(filename); ok {
 			surge = []byte(cached)
 		} else {
-			surge, err = os.ReadFile(file)
+			surge, err = os.ReadFile(file) // #nosec G304 -- DecodeSurge intentionally accepts an administrator-selected local template path.
 			if err != nil {
 				log.Println(err)
 				return "", err

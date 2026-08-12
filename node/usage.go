@@ -30,7 +30,7 @@ func FetchAirportUsageInfo(airport *models.Airport) (*UsageInfo, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second, // 用量获取使用较短超时
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: airport.SkipTLSVerify},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: airport.SkipTLSVerify}, // #nosec G402 -- opt-in airport setting; verification remains enabled by default.
 		},
 	}
 
@@ -74,7 +74,7 @@ func FetchAirportUsageInfo(airport *models.Airport) (*UsageInfo, error) {
 
 						return proxyAdapter.DialContext(ctx, metadata)
 					},
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: airport.SkipTLSVerify},
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: airport.SkipTLSVerify}, // #nosec G402 -- opt-in airport setting; verification remains enabled by default.
 				}
 			}
 		}

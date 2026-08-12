@@ -170,7 +170,7 @@ func Templateinit() {
 	// 创建template目录
 	_, err = os.Stat("./template")
 	if os.IsNotExist(err) {
-		err = os.Mkdir("./template", 0755)
+		err = os.Mkdir("./template", 0750)
 		if err != nil {
 			utils.Error("创建模板目录失败: %v", err)
 			return
@@ -186,7 +186,7 @@ func Templateinit() {
 				utils.Error("读取模板文件失败: %v", err)
 				continue
 			}
-			err = os.WriteFile("./template/"+entry.Name(), data, 0666)
+			err = os.WriteFile("./template/"+entry.Name(), data, 0600)
 			if err != nil {
 				utils.Error("写入模板文件失败: %v", err)
 			}
@@ -363,7 +363,7 @@ func initDatabase(dsn, dbPath, logPath, logLevel, configFile string, port int) e
 // ensureDir 确保目录存在
 func ensureDir(path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0750); err != nil {
 			utils.Error("创建目录失败 %s: %v", path, err)
 		}
 	}
@@ -782,8 +782,9 @@ func Run() {
 	})
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf("0.0.0.0:%d", port),
-		Handler: r,
+		Addr:              fmt.Sprintf("0.0.0.0:%d", port),
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	shutdownCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignal()

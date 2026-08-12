@@ -5,13 +5,14 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- SHA-1 is required by the interoperable TOTP algorithm, not used for password hashing.
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -74,7 +75,11 @@ func totpCode(secret string, at time.Time) (string, error) {
 		return "", err
 	}
 
-	counter := uint64(at.Unix() / TOTPPeriod)
+	unixSeconds := at.Unix()
+	if unixSeconds < 0 {
+		return "", errors.New("TOTP time must not precede the Unix epoch")
+	}
+	counter := uint64(unixSeconds / TOTPPeriod) // #nosec G115 -- unixSeconds is checked as non-negative above.
 	var counterBuf [8]byte
 	binary.BigEndian.PutUint64(counterBuf[:], counter)
 

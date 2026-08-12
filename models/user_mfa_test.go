@@ -61,6 +61,12 @@ func setupUserMFATestDB(t *testing.T) {
 	})
 }
 
+func TestTOTPCodeRejectsTimeBeforeUnixEpoch(t *testing.T) {
+	if _, err := totpCode("JBSWY3DPEHPK3PXP", time.Unix(-1, 0)); err == nil {
+		t.Fatal("expected time before Unix epoch to be rejected")
+	}
+}
+
 func TestTOTPEnrollmentConfirmationAndRecoveryCodeUse(t *testing.T) {
 	setupUserMFATestDB(t)
 

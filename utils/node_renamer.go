@@ -359,7 +359,7 @@ func ISOToFlag(isoCode string) string {
 	// 'A' 对应 U+1F1E6
 	flag := ""
 	for _, c := range code {
-		flag += string(rune(0x1F1E6 + int(c) - 'A'))
+		flag += string(rune(0x1F1E6) + c - 'A')
 	}
 
 	return flag

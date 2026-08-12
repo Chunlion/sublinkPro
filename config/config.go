@@ -461,7 +461,7 @@ func buildBaseConfigInternal(configPath string) *AppConfig {
 
 // loadFromFileInternal 从配置文件加载（内部使用，不获取锁）
 func loadFromFileInternal(cfg *AppConfig, configPath string) {
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- configPath is an intentional CLI/environment configuration path.
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Printf("配置文件 %s 不存在，使用默认配置", configPath)
@@ -788,12 +788,12 @@ func SaveToFile() error {
 # 如需覆盖，请使用环境变量 SUBLINK_JWT_SECRET 和 SUBLINK_API_ENCRYPTION_KEY
 # 可选受限应急配置：仅支持环境变量 SUBLINK_MFA_RESET_SECRET，不会写入配置文件
 `
-	data, err := yaml.Marshal(saveCfg)
+	data, err := yaml.Marshal(saveCfg) // #nosec G117 -- persisted configuration intentionally contains protected secret fields and is written with mode 0600.
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(configPath, []byte(comment+string(data)), 0644)
+	return os.WriteFile(configPath, []byte(comment+string(data)), 0600)
 }
 
 func normalizeTrustedProxies(values []string) []string {
@@ -822,7 +822,7 @@ func normalizeTrustedProxies(values []string) []string {
 func MigrateFromOldConfig() bool {
 	configPath := GetConfigFilePath()
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- configPath is an intentional CLI/environment configuration path.
 	if err != nil {
 		return false
 	}

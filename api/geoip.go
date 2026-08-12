@@ -232,7 +232,7 @@ func downloadGeoIPFile(url string, useProxy bool, proxyLink string) error {
 
 	// 确保目录存在
 	dir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("创建目录失败: %v", err)
 	}
 
@@ -262,7 +262,7 @@ func downloadGeoIPFile(url string, useProxy bool, proxyLink string) error {
 
 	// 创建临时文件
 	tmpPath := targetPath + ".tmp"
-	file, err := os.Create(tmpPath)
+	file, err := os.Create(tmpPath) // #nosec G304 -- tmpPath is derived from the configured GeoIP target, not request input.
 	if err != nil {
 		return fmt.Errorf("创建临时文件失败: %v", err)
 	}
@@ -327,13 +327,13 @@ func downloadGeoIPFile(url string, useProxy bool, proxyLink string) error {
 
 // copyFile 复制文件
 func copyFile(src, dst string) error {
-	source, err := os.Open(src)
+	source, err := os.Open(src) // #nosec G304 -- caller supplies internally derived GeoIP temporary and target paths.
 	if err != nil {
 		return err
 	}
 	defer func() { _ = source.Close() }()
 
-	destination, err := os.Create(dst)
+	destination, err := os.Create(dst) // #nosec G304 -- caller supplies internally derived GeoIP temporary and target paths.
 	if err != nil {
 		return err
 	}
@@ -440,7 +440,7 @@ func downloadGeoIPFileWithProgress(url string, useProxy bool, proxyLink string, 
 
 	// 确保目录存在
 	dir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("创建目录失败: %v", err)
 	}
 
@@ -491,7 +491,7 @@ func downloadGeoIPFileWithProgress(url string, useProxy bool, proxyLink string, 
 
 	// 创建临时文件
 	tmpPath := targetPath + ".tmp"
-	file, err := os.Create(tmpPath)
+	file, err := os.Create(tmpPath) // #nosec G304 -- tmpPath is derived from the configured GeoIP target, not request input.
 	if err != nil {
 		return fmt.Errorf("创建临时文件失败: %v", err)
 	}

@@ -120,7 +120,7 @@ func parseFormBool(raw string) bool {
 
 func createDatabaseMigrationUploadFile(fileExt string) (*os.File, error) {
 	tempRoot := filepath.Join(config.GetDBPath(), ".tmp", "database-migration")
-	if err := os.MkdirAll(tempRoot, 0755); err != nil {
+	if err := os.MkdirAll(tempRoot, 0700); err != nil {
 		return nil, err
 	}
 	return os.CreateTemp(tempRoot, "upload-*"+fileExt)

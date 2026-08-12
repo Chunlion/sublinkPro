@@ -370,7 +370,7 @@ func parseTemplateProxyGroups(configStr string) []string {
 		if cached, ok := cache.GetTemplateContent(filename); ok {
 			templateContent = cached
 		} else {
-			data, err := os.ReadFile(clashTemplate)
+			data, err := os.ReadFile(clashTemplate) // #nosec G304 -- local template paths are an intentional administrator-configured input.
 			if err != nil {
 				return []string{}
 			}

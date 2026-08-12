@@ -18,7 +18,7 @@ import (
 
 const (
 	settingEnabledKey = "cloudflared_enabled"
-	settingTokenKey   = "cloudflared_tunnel_token_encrypted"
+	settingTokenKey   = "cloudflared_tunnel_token_encrypted" // #nosec G101 -- storage key name, not a credential value.
 	maxMessageLength  = 2000
 )
 
@@ -195,7 +195,7 @@ func (m *Manager) start(token string, persist bool) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, path, "tunnel", "--no-autoupdate", "run")
+	cmd := exec.CommandContext(ctx, path, "tunnel", "--no-autoupdate", "run") // #nosec G204 -- path is resolved by exec.LookPath, and arguments are fixed constants.
 	cmd.Env = cloudflaredEnv(config.RawToken)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

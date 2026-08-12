@@ -1,7 +1,7 @@
 package models
 
 import (
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- retained solely for deterministic legacy migration identifiers, not cryptographic security.
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,7 +18,7 @@ import (
 
 // md5Hash 生成MD5哈希值（用于迁移老链接）
 func md5Hash(src string) string {
-	m := md5.New()
+	m := md5.New() // #nosec G401 -- legacy migration compatibility; changing the digest would rerun existing migrations.
 	m.Write([]byte(src))
 	return hex.EncodeToString(m.Sum(nil))
 }

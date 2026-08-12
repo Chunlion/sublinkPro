@@ -618,7 +618,7 @@ func trojanOptionInt(value any) int {
 		}
 	case uint64:
 		if number <= uint64(maxInt) {
-			return int(number)
+			return int(number) // #nosec G115 -- number is bounded by maxInt above.
 		}
 	case float32:
 		if math.Trunc(float64(number)) == float64(number) && float64(number) >= float64(minInt) && float64(number) < float64(maxInt) {

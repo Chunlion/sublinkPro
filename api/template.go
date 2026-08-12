@@ -60,7 +60,7 @@ func init() {
 
 	// 确保基础模板目录存在，如果不存在则创建
 	if _, err := os.Stat(baseTemplateDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(baseTemplateDir, 0755); err != nil {
+		if err := os.MkdirAll(baseTemplateDir, 0750); err != nil {
 			utils.Fatal("无法创建基础模板目录 %s: %v", baseTemplateDir, err)
 		}
 		utils.Info("已创建基础模板目录: %s", baseTemplateDir)
@@ -150,7 +150,7 @@ func GetTempS(c *gin.Context) {
 			textContent = cached
 		} else {
 			// 缓存未命中，从文件读取并写入缓存
-			textBytes, readErr := os.ReadFile(fullPathToRead)
+			textBytes, readErr := os.ReadFile(fullPathToRead) // #nosec G304 -- fullPathToRead is produced by safeFilePath and confined to baseTemplateDir.
 			if readErr != nil {
 				utils.Error("读取文件内容失败: %s, 错误: %v", fullPathToRead, readErr)
 				continue // 跳过无法读取的文件
@@ -308,7 +308,7 @@ func UpdateTemp(c *gin.Context) {
 	}
 
 	// 写入文件内容到新的安全路径
-	err = os.WriteFile(newFullPath, []byte(text), 0666)
+	err = os.WriteFile(newFullPath, []byte(text), 0600)
 	if err != nil {
 		utils.Error("修改文件内容失败: %v", err)
 		utils.FailWithMsg(c, "修改失败")
@@ -358,7 +358,7 @@ func writeTemplateFileAndMeta(filename, oldname, text, category, ruleSource stri
 		category = "clash"
 	}
 	if _, err := os.Stat(baseTemplateDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(baseTemplateDir, 0755); err != nil {
+		if err := os.MkdirAll(baseTemplateDir, 0750); err != nil {
 			return fmt.Errorf("无法创建模板目录: %w", err)
 		}
 	}
@@ -395,7 +395,7 @@ func writeTemplateFileAndMeta(filename, oldname, text, category, ruleSource stri
 			cache.InvalidateTemplateContent(oldResolvedName)
 		}
 	}
-	if err := os.WriteFile(newFullPath, []byte(text), 0666); err != nil {
+	if err := os.WriteFile(newFullPath, []byte(text), 0600); err != nil {
 		return fmt.Errorf("写入模板失败: %w", err)
 	}
 	cache.SetTemplateContent(filename, text)
@@ -838,7 +838,7 @@ func AcceptTemplateAIEditSession(c *gin.Context) {
 	}
 	clientBaseMatches := strings.TrimSpace(req.CurrentText) != "" && ai.BuildRevisionHash(req.CurrentText) == session.BaseHash
 	if !clientBaseMatches {
-		currentBytes, err := os.ReadFile(fullPath)
+		currentBytes, err := os.ReadFile(fullPath) // #nosec G304 -- fullPath is produced by safeFilePath and confined to baseTemplateDir.
 		if err != nil {
 			utils.FailWithMsg(c, "读取当前模板失败: "+err.Error())
 			return

@@ -42,7 +42,7 @@ const (
 	systemAIEnabledKey      = "ai_enabled"
 	systemAIBaseURLKey      = "ai_base_url"
 	systemAIModelKey        = "ai_model"
-	systemAIAPIKeyKey       = "ai_api_key_encrypted"
+	systemAIAPIKeyKey       = "ai_api_key_encrypted" // #nosec G101 -- storage key name, not a credential value.
 	systemAITemperatureKey  = "ai_temperature"
 	systemAIMaxTokensKey    = "ai_max_tokens"
 	systemAIExtraHeadersKey = "ai_extra_headers"

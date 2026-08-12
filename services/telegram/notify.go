@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -158,7 +159,10 @@ func getIntFromData(data map[string]any, key string) int {
 		case uint32:
 			return int(val)
 		case uint64:
-			return int(val)
+			if val > math.MaxInt {
+				return 0
+			}
+			return int(val) // #nosec G115 -- val is bounded by math.MaxInt above.
 		case float32:
 			return int(val)
 		case float64:
