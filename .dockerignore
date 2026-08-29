@@ -1,9 +1,19 @@
 
+.git
+.github
+.agents
+.idea
+.vscode
+.env
+!webs/.env
 webs/node_modules
+webs/dist
 .DS_Store
 *.DS_Store
 db
 logs
+*.exe
+sublinkPro
 README.md
 README.en-US.md
 docs

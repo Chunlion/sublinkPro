@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # SublinkPro Dockerfile
 # ============================================
 # 多阶段构建：前端 -> 后端 -> 运行时镜像
@@ -6,27 +8,32 @@
 # 1. 构建前端
 FROM node:24-alpine AS frontend-builder
 WORKDIR /frontend
-COPY webs ./webs
 
 # Enable Corepack for Yarn
 RUN corepack enable
 
-# 使用 Yarn 安装依赖并构建
-RUN cd webs && yarn install && yarn run build
+# 先复制依赖清单，避免源码变更导致依赖安装层失效
+COPY webs/package.json webs/yarn.lock webs/.yarnrc.yml ./webs/
+RUN cd webs && yarn install --immutable
+
+COPY webs ./webs
+RUN cd webs && yarn run build
 
 
 # 2. 构建后端
 FROM golang:1.26.4 AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
 # 把前端构建产物复制到 static 目录
 COPY --from=frontend-builder /frontend/webs/dist ./static
 
 ARG VERSION=custom
-RUN printf '%s\n' "$VERSION" > VERSION && \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    printf '%s\n' "$VERSION" > VERSION && \
     CGO_ENABLED=0 go build -tags=prod -ldflags="-s -w" -o sublinkPro
 
 

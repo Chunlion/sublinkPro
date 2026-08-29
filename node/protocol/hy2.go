@@ -225,7 +225,7 @@ func buildHY2Proxy(link Urls, config OutputConfig) (Proxy, error) {
 // buildHY2SurgeLine 将 Hysteria2 链接转换为 Surge 节点行。
 // Surge 导出仅使用当前受支持的密码、端口与 TLS 相关字段，属于精简映射而非完整保真。
 func buildHY2SurgeLine(link string, config OutputConfig) (string, string, error) {
-	hy2, err := DecodeHY2URL(link)
+	hy2, err := decodeHY2URLForSurge(link)
 	if err != nil {
 		return "", "", err
 	}
@@ -258,6 +258,32 @@ func buildHY2SurgeLine(link string, config OutputConfig) (string, string, error)
 		line = fmt.Sprintf("%s, port-hopping=%s", line, mphop)
 	}
 	return line, hy2.Name, nil
+}
+
+// decodeHY2URLForSurge preserves strict protocol decoding while allowing the
+// Surge exporter to apply its documented fallback for numeric ports outside
+// the valid range.
+func decodeHY2URLForSurge(link string) (HY2, error) {
+	u, err := url.Parse(link)
+	if err != nil {
+		return DecodeHY2URL(link)
+	}
+	rawPort := u.Port()
+	port, err := strconv.Atoi(rawPort)
+	if err != nil || (port >= 1 && port <= 65535) {
+		return DecodeHY2URL(link)
+	}
+
+	u.Host = formatURLHostPort(u.Hostname(), "443")
+	hy2, err := DecodeHY2URL(u.String())
+	if err != nil {
+		return HY2{}, err
+	}
+	hy2.Port = port
+	if u.Fragment == "" {
+		hy2.Name = u.Hostname() + ":" + rawPort
+	}
+	return hy2, nil
 }
 
 // surgePortHopping 将 Hysteria2/mihomo 的 mport 端口跳跃串规范化为 Surge 语法。
