@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: custom-docker-${{ github.ref }}
+  group: custom-docker
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: custom
           fetch-depth: 0
@@ -47,13 +47,23 @@ jobs:
           git config merge.keepCustomWorkflows.driver true
           echo ".github/workflows/* merge=keepCustomWorkflows" > .git/info/attributes
 
+          sync_failed=false
           if git merge --ff-only "upstream/${UPSTREAM_BRANCH}"; then
             echo "Upstream already merged or fast-forwarded."
-          else
-            git merge --no-edit "upstream/${UPSTREAM_BRANCH}"
+          elif ! git merge --no-edit "upstream/${UPSTREAM_BRANCH}"; then
+            conflicts="$(git diff --name-only --diff-filter=U | paste -sd ', ' -)"
+            git merge --abort
+            sync_failed=true
+            echo "::warning title=Upstream sync skipped::Merge conflicts in ${conflicts}. Building the existing custom branch instead."
+            {
+              echo "### Upstream sync skipped"
+              echo
+              echo "Merge conflicts require manual resolution: \`${conflicts}\`."
+              echo "The image will be built from the existing custom branch."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/${CUSTOM_BRANCH}")" ]; then
+          if [ "$sync_failed" = false ] && [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/${CUSTOM_BRANCH}")" ]; then
             git push origin "HEAD:${CUSTOM_BRANCH}"
           else
             echo "No upstream changes to push."
