@@ -178,6 +178,7 @@ export default function GeoIPSettingsDialog({ open, onClose, showMessage }) {
       });
       if (res.code === 200) {
         showMessage?.(t('components.geoIpSettings.messages.saveSuccess'), 'success');
+        return true;
       } else {
         showMessage?.(res.msg || t('components.geoIpSettings.messages.saveFailed'), 'error');
       }
@@ -189,11 +190,12 @@ export default function GeoIPSettingsDialog({ open, onClose, showMessage }) {
     } finally {
       setSaving(false);
     }
+    return false;
   };
 
   const handleDownload = async () => {
     // 先保存配置
-    await handleSave();
+    if (!(await handleSave())) return;
 
     try {
       const res = await downloadGeoIP();

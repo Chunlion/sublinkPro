@@ -60,13 +60,13 @@ request.interceptors.response.use(
       const { status } = error.response;
       const requestConfig = error.config || {};
 
-      // 401/403 - 清除 token 并跳转登录
-      if ((status === 401 || status === 403) && !isAnonymousAuthRequest(requestConfig)) {
-        if (status === 403) {
-          console.error(i18n.t('auth.fallback.noPermission', '没有权限访问该资源'));
-        } else {
-          console.error(i18n.t('auth.fallback.unauthorized', '未授权访问'));
-        }
+      if (status === 403) {
+        console.error(i18n.t('auth.fallback.noPermission', '没有权限访问该资源'));
+      }
+
+      // 凭证失效时清除 token 并跳转登录
+      if (status === 401 && !isAnonymousAuthRequest(requestConfig)) {
+        console.error(i18n.t('auth.fallback.unauthorized', '未授权访问'));
 
         localStorage.removeItem('accessToken');
 

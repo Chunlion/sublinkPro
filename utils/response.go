@@ -88,6 +88,10 @@ func Forbidden(c *gin.Context, msg string) {
 	Result(c, http.StatusForbidden, http.StatusForbidden, msg, nil)
 }
 
+func Unauthorized(c *gin.Context, msg string) {
+	Result(c, http.StatusUnauthorized, http.StatusUnauthorized, msg, nil)
+}
+
 func ForbiddenI18n(c *gin.Context, msg string, i18nKey string, i18nParams map[string]any) {
 	ResultI18n(c, http.StatusForbidden, http.StatusForbidden, msg, nil, i18nKey, i18nParams)
 }

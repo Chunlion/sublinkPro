@@ -37,7 +37,7 @@ func AuthToken(c *gin.Context) {
 	if accessKey != "" {
 		username, bool, err := validApiKey(accessKey)
 		if err != nil || !bool {
-			utils.Forbidden(c, err.Error())
+			utils.Unauthorized(c, err.Error())
 			c.Abort()
 			return
 		}
@@ -51,13 +51,13 @@ func AuthToken(c *gin.Context) {
 		token = c.Query("token")
 	}
 	if token == "" {
-		utils.Forbidden(c, "请求未携带token")
+		utils.Unauthorized(c, "请求未携带token")
 		c.Abort()
 		return
 	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		utils.Forbidden(c, "token格式错误")
+		utils.Unauthorized(c, "token格式错误")
 		c.Abort()
 		return
 	}
@@ -70,7 +70,7 @@ func AuthToken(c *gin.Context) {
 			sendSSEAuthError(c, err.Error())
 			return
 		}
-		utils.Forbidden(c, err.Error())
+		utils.Unauthorized(c, err.Error())
 		c.Abort()
 		return
 	}
@@ -82,7 +82,7 @@ func AuthToken(c *gin.Context) {
 			sendSSEAuthError(c, errMsg)
 			return
 		}
-		utils.Forbidden(c, errMsg)
+		utils.Unauthorized(c, errMsg)
 		c.Abort()
 		return
 	}

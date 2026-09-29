@@ -43,7 +43,7 @@ curl -s -X DELETE -H "X-API-Key: $SUBLINK_API_KEY" \
   "$SUBLINK_BASE_URL/api/v1/nodes/delete?id=123"
 ```
 
-**Critical — judge success by the body's `code`, not the HTTP status.** A failure commonly comes back as **HTTP 200 with `code:500`** in the body. Always parse the JSON and check `.code` (200 = success; 400/403/404/500 = failure, read `.msg`). For example: `... | python3 -c 'import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get("code")==200 else 1)'`, or just read the `code` field directly from the response.
+**Critical — judge success by the body's `code`, not the HTTP status.** A failure commonly comes back as **HTTP 200 with `code:500`** in the body. Always parse the JSON and check `.code` (200 = success; 400/401/403/404/500 = failure, read `.msg`). Authentication failures return HTTP 401; permission denials return HTTP 403. For example: `... | python3 -c 'import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get("code")==200 else 1)'`, or just read the `code` field directly from the response.
 
 For non-envelope responses (subscription output at `/c/`, SSE streams) there is no `{code,msg,data}` wrapper — read the raw body as-is.
 
@@ -68,7 +68,7 @@ It is a convenience only — everything it does can be done with curl. Use which
 All JSON endpoints return:
 ```json
 {
-  "code": 200,        // 200=success, 500=error, 400/403/404=client error
+  "code": 200,        // 200=success, 500=error, 400/401/403/404=client error
   "msg": "...",       // human-readable message
   "data": <any>,      // actual response data
   "i18nKey": "...",   // optional i18n key
