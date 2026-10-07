@@ -553,10 +553,11 @@ func renderPreparedV2ray(c *gin.Context, prepared preparedClientResponse) {
 	for idx, v := range sub.Nodes {
 		finalNodeName := nodeNamePlan.NodeNameAt(idx, v.ID)
 		nodeLink := utils.RenameNodeLink(v.Link, finalNodeName)
+		outputLinks := models.SplitNodeOutputLinks(v.Link)
 		switch {
 		// 如果包含多条节点
-		case strings.Contains(v.Link, ","):
-			links := strings.Split(v.Link, ",")
+		case len(outputLinks) > 1:
+			links := outputLinks
 			splitNames := nodeNamePlan.SplitNamesAt(idx)
 			// 对每个链接应用节点名称模式和重命名规则。
 			for i, link := range links {
@@ -726,11 +727,12 @@ func buildPreparedMihomoYAML(c *gin.Context, prepared preparedClientResponse) (m
 		// 使用最终名称重写链接，确保 proxy.name 与代理组、dialer-proxy 引用一致。
 		nodeLink := utils.RenameNodeLink(v.Link, finalNodeName)
 		dialerProxy := resolveClashDialerProxy(v, finalNodeName, chainNodeDialerMap, targetNodeDialerMap, dialerProxyNameMap)
+		outputLinks := models.SplitNodeOutputLinks(v.Link)
 
 		switch {
 		// 如果包含多条节点
-		case strings.Contains(v.Link, ","):
-			links := strings.Split(v.Link, ",")
+		case len(outputLinks) > 1:
+			links := outputLinks
 			splitNames := nodeNamePlan.SplitNamesAt(idx)
 			for i, link := range links {
 				linkName := finalNodeName
@@ -911,10 +913,11 @@ func renderPreparedSurge(c *gin.Context, prepared preparedClientResponse) {
 		finalNodeName := nodeNamePlan.NodeNameAt(idx, v.ID)
 		// Surge 的 [Proxy] 左侧名称来自链接名称，也要复用最终名称。
 		nodeLink := utils.RenameNodeLink(v.Link, finalNodeName)
+		outputLinks := models.SplitNodeOutputLinks(v.Link)
 		switch {
 		// 如果包含多条节点
-		case strings.Contains(v.Link, ","):
-			links := strings.Split(v.Link, ",")
+		case len(outputLinks) > 1:
+			links := outputLinks
 			splitNames := nodeNamePlan.SplitNamesAt(idx)
 			for i, link := range links {
 				linkName := finalNodeName

@@ -1,6 +1,33 @@
 package models
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+func TestSplitNodeOutputLinksPreservesParameterCommas(t *testing.T) {
+	vless := "vless://12345678-1234-1234-1234-123456789abc@example.com:443?security=reality&alpn=h2,http/1.1#one,two"
+	trojan := "trojan://test@example.com:443?alpn=h2,http/1.1#next"
+	for _, tc := range []struct {
+		name string
+		link string
+		want []string
+	}{
+		{name: "single link with ALPN and remark commas", link: vless, want: []string{vless}},
+		{name: "combined links with parameter commas", link: vless + ", " + trojan, want: []string{vless, trojan}},
+		{name: "uppercase scheme", link: vless + ",HTTP://example.com:8080", want: []string{vless, "HTTP://example.com:8080"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SplitNodeOutputLinks(tc.link); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("links = %#v, want %#v", got, tc.want)
+			}
+			plan := BuildNodeNamePlan([]Node{{ID: 1, Name: "remark", Link: tc.link}}, "", "$Name$DuplicateIndex", nil)
+			if len(plan.SplitNamesAt(0)) != len(tc.want) {
+				t.Fatal("parameter commas changed the number of rendered nodes")
+			}
+		})
+	}
+}
 
 func TestNodeEffectiveNameUsesConfiguredMode(t *testing.T) {
 	tests := []struct {

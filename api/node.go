@@ -309,7 +309,7 @@ func NodeUpdadte(c *gin.Context) {
 	Node.Protocol = protocol.GetProtocolFromLink(link)
 
 	// 重新计算 ContentHash
-	proxy, proxyErr := protocol.LinkToProxy(protocol.Urls{Url: link}, protocol.OutputConfig{})
+	proxy, proxyErr := protocol.LinkToProxy(protocol.Urls{Url: link, RealityMLKEM: Node.MihomoRealityMLKEMSource}, protocol.OutputConfig{})
 	if proxyErr == nil {
 		contentHash := protocol.GenerateProxyContentHash(proxy)
 		if contentHash != "" {

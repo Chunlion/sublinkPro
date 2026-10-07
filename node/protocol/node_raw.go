@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -136,10 +137,22 @@ func UpdateNodeLinkFields(link string, fieldsJSON string) (string, error) {
 	}
 
 	editable := v.Elem()
+	originalJSON, err := json.Marshal(editable.Interface())
+	if err != nil {
+		return "", err
+	}
 	for path, val := range fields {
 		if err := setFieldValue(editable, path, val); err != nil {
 			return "", err
 		}
+	}
+	updatedJSON, err := json.Marshal(editable.Interface())
+	if err != nil {
+		return "", err
+	}
+	// 未修改协议字段时保留原链接，包括当前解码器不识别的扩展参数。
+	if bytes.Equal(originalJSON, updatedJSON) {
+		return link, nil
 	}
 
 	return protocol.EncodeLink(editable.Interface())

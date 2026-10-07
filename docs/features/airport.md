@@ -98,7 +98,7 @@ Notes:
 
 ### Mihomo REALITY MLKEM per node
 
-For a VLESS node with `security=reality`, open the node's raw protocol editor → Advanced settings → **Mihomo REALITY MLKEM**. **Keep original** (default) preserves the imported `reality-opts.support-x25519mlkem768` value, including explicit `false`; absent source values remain absent. **Enable** writes boolean `true`; **Disable** writes boolean `false`. Explicit choices stay attached to the matched node when its subscription refreshes.
+For a VLESS node with `security=reality`, open the node's raw protocol editor → Advanced settings → **Mihomo REALITY MLKEM**. **Keep original** (default) preserves the imported `reality-opts.support-x25519mlkem768` value, including explicit `false`; absent source values remain absent. **Enable** writes boolean `true`; **Disable** writes boolean `false`. Changing only this setting leaves the original share link unchanged. Explicit choices stay attached to the matched node when its subscription refreshes.
 
 The override applies only to final Mihomo output (`client=clash`, `mihomo`, `clashmeta` or `clash-meta`). Other Sub-Store targets, including Egern and Shadowrocket, receive the original source value without this override and use Sub-Store's native mapping. VLESS share links do not carry this setting. Public key, Short ID, SNI, fingerprint, flow and certificate verification are unchanged. This controls one Mihomo option; it is not a general compatibility switch or a guarantee that handshakes will succeed.
 

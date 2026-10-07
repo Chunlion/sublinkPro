@@ -1,6 +1,7 @@
 package models
 
 import (
+	"net/url"
 	"strings"
 	"sublink/utils"
 )
@@ -39,7 +40,7 @@ func BuildNodeNamePlan(nodes []Node, nodeNamePreprocess string, nodeNameRule str
 
 	for nodeIndex, node := range nodes {
 		processedLinkName := utils.PreprocessNodeName(nodeNamePreprocess, node.LinkName)
-		links := splitNodeOutputLinks(node.Link)
+		links := SplitNodeOutputLinks(node.Link)
 		plan.SplitNames[nodeIndex] = make([]string, len(links))
 
 		for linkIndex, link := range links {
@@ -127,9 +128,19 @@ func (plan NodeNamePlan) setName(nodeIndex int, linkIndex int, nodeID int, name 
 	}
 }
 
-func splitNodeOutputLinks(link string) []string {
-	if strings.Contains(link, ",") {
-		return strings.Split(link, ",")
+// SplitNodeOutputLinks 只在逗号后开始另一条 URL 时拆分，保留 ALPN 等参数中的逗号。
+func SplitNodeOutputLinks(link string) []string {
+	parts := strings.Split(link, ",")
+	links := []string{parts[0]}
+	for _, part := range parts[1:] {
+		trimmed := strings.TrimSpace(part)
+		scheme, _, hasScheme := strings.Cut(trimmed, "://")
+		parsed, err := url.Parse(scheme + ":")
+		if hasScheme && err == nil && parsed.Scheme != "" {
+			links = append(links, trimmed)
+		} else {
+			links[len(links)-1] += "," + part
+		}
 	}
-	return []string{link}
+	return links
 }

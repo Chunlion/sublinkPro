@@ -97,7 +97,7 @@ SublinkPro 提供了完善的机场订阅管理功能，不仅能将订阅转换
 
 ### 节点设置：Mihomo REALITY MLKEM
 
-对于 `security=reality` 的 VLESS 节点，在节点原始协议编辑器 → 高级设置中调整 **Mihomo REALITY MLKEM**。**保持原值**（默认）保留导入的 `reality-opts.support-x25519mlkem768`，包括明确的 `false`；源数据未设置时不输出。**启用**输出布尔值 `true`，**禁用**输出布尔值 `false`。订阅刷新匹配到原节点后，显式设置继续保留。
+对于 `security=reality` 的 VLESS 节点，在节点原始协议编辑器 → 高级设置中调整 **Mihomo REALITY MLKEM**。**保持原值**（默认）保留导入的 `reality-opts.support-x25519mlkem768`，包括明确的 `false`；源数据未设置时不输出。**启用**输出布尔值 `true`，**禁用**输出布尔值 `false`。只修改此设置时保留原始分享链接。订阅刷新匹配到原节点后，显式设置继续保留。
 
 覆写只应用于最终 Mihomo 输出（`client=clash`、`mihomo`、`clashmeta` 或 `clash-meta`）。Egern、Shadowrocket 等其他 Sub-Store 目标接收未应用覆写的原始值，沿用 Sub-Store 原生映射。普通 VLESS 分享链接不携带此设置。公钥、Short ID、SNI、指纹、flow 和证书验证不变。此功能仅管理一个 Mihomo 配置项，不是通用兼容开关，也不保证握手成功。
 

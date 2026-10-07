@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -18,6 +19,58 @@ import (
 )
 
 const realityMLKEMTestLink = "vless://12345678-1234-1234-1234-123456789abc@example.com:443?security=reality&type=tcp&pbk=test-key&sid=ab&sni=sni.example.com&fp=chrome&flow=xtls-rprx-vision#reality"
+
+func TestRealityMLKEMSettingPreservesOriginalLink(t *testing.T) {
+	setupNodeRawAPITestDB(t)
+	link := strings.Replace(realityMLKEMTestLink, "#reality", "&spx=%2Fhello&alpn=h2,http%2F1.1#reality", 1)
+	node := createNodeRawAPITestNode(t, models.Node{Name: "reality", LinkName: "reality", Link: link, Protocol: "vless"})
+	parsed, err := protocol.ParseNodeLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The UI submits every parsed field even when only the Mihomo setting changes.
+	parsed.Fields["MihomoRealityMLKEM"] = "enable"
+	response := performJSONRequest(t, UpdateNodeRawInfo, http.MethodPost, UpdateNodeRawRequest{NodeID: node.ID, Fields: parsed.Fields})
+	if got := decodeAPIResponse(t, response); got.Code != 200 {
+		t.Fatalf("save failed: %s", got.Msg)
+	}
+	var stored models.Node
+	if err := database.DB.First(&stored, node.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Link != link || stored.MihomoRealityMLKEM != "enable" {
+		t.Fatal("saving only the override rewrote the original link")
+	}
+}
+
+func TestRealityMLKEMRemarkEditPreservesImportedContentHash(t *testing.T) {
+	setupNodeRawAPITestDB(t)
+	var sourceHash string
+	var imported models.Node
+	for i, source := range []*bool{new(false), nil} {
+		link := strings.Replace(realityMLKEMTestLink, "#reality", "#reality-"+strconv.Itoa(i), 1)
+		proxy, err := protocol.LinkToProxy(protocol.Urls{Url: link, RealityMLKEM: source}, protocol.OutputConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := createNodeRawAPITestNode(t, models.Node{Name: proxy.Name, LinkName: proxy.Name, Link: link, Protocol: "vless", ContentHash: protocol.GenerateProxyContentHash(proxy), MihomoRealityMLKEMSource: source})
+		if i == 0 {
+			imported = n
+			sourceHash = n.ContentHash
+		}
+	}
+	response := performFormRequest(t, NodeUpdadte, map[string]string{"id": strconv.Itoa(imported.ID), "link": imported.Link, "name": "my-remark", "group": "manual"})
+	if got := decodeAPIResponse(t, response); got.Code != 200 {
+		t.Fatalf("remark edit failed: %s", got.Msg)
+	}
+	var stored models.Node
+	if err := database.DB.First(&stored, imported.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.ContentHash != sourceHash || stored.MihomoRealityMLKEMSource == nil || *stored.MihomoRealityMLKEMSource {
+		t.Fatal("remark edit changed imported source identity")
+	}
+}
 
 func TestRealityMLKEMNodeSettingPersistence(t *testing.T) {
 	setupNodeRawAPITestDB(t)
@@ -111,7 +164,8 @@ func TestRealityMLKEMFinalTargetAndOverridePriority(t *testing.T) {
 	saveSubStoreSettings(t, server.URL, []string{"egern", "shadowrocket", "sing-box", "json", "uri", "clashmeta"})
 	for _, source := range []*bool{nil, new(true), new(false)} {
 		for _, setting := range []string{"", "enable", "disable"} {
-			if err := database.DB.Model(&models.Node{}).Where("id = ?", node.ID).Updates(map[string]any{"link": realityMLKEMTestLink, "protocol": "vless", "mihomo_reality_mlkem_source": source, "mihomo_reality_mlkem": setting}).Error; err != nil {
+			link := strings.Replace(realityMLKEMTestLink, "#reality", "&alpn=h2,http%2F1.1#reality", 1)
+			if err := database.DB.Model(&models.Node{}).Where("id = ?", node.ID).Updates(map[string]any{"link": link, "protocol": "vless", "mihomo_reality_mlkem_source": source, "mihomo_reality_mlkem": setting}).Error; err != nil {
 				t.Fatal(err)
 			}
 			if err := models.InitNodeCache(); err != nil {
@@ -152,6 +206,9 @@ func TestRealityMLKEMFinalTargetAndOverridePriority(t *testing.T) {
 					t.Fatalf("%s bridge parse: %v", client, err)
 				}
 				got := config.Proxies[0].RealityMLKEM()
+				if strings.Join(config.Proxies[0].Alpn, ",") != "h2,http/1.1" {
+					t.Fatalf("%s: ALPN comma was treated as a node separator", client)
+				}
 				if (got == nil) != (want == nil) || (got != nil && *got != *want) {
 					t.Fatalf("%s setting=%q: wrong output boolean", client, setting)
 				}
