@@ -223,8 +223,21 @@ type Config struct {
 
 // 代理链接的结构体
 type Urls struct {
+	RealityMLKEM    *bool
 	Url             string
 	DialerProxyName string
+}
+
+// RealityMLKEM 返回 Mihomo YAML 的源值，nil 与显式 false 必须保持不同。
+func (proxy Proxy) RealityMLKEM() *bool {
+	if !strings.EqualFold(proxy.Type, "vless") {
+		return nil
+	}
+	value, ok := proxy.Reality_opts["support-x25519mlkem768"].(bool)
+	if !ok {
+		return nil
+	}
+	return &value
 }
 
 // 删除opts中的空值

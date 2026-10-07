@@ -1586,6 +1586,11 @@
         "other": "其他配置"
       },
       "selectPlaceholder": "请选择",
+      "mlkem": {
+        "preserve": "保持原值",
+        "enable": "启用",
+        "disable": "禁用"
+      },
       "fieldCount": "{{count}} 个字段",
       "viewMode": "查看模式",
       "editMode": "编辑模式",

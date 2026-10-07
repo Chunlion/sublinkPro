@@ -96,6 +96,12 @@ Notes:
 - Filtered nodes are not stored in the database.
 - Global rules can be accessed from the airport management page via the “Global Rules” button in the toolbar.
 
+### Mihomo REALITY MLKEM per node
+
+For a VLESS node with `security=reality`, open the node's raw protocol editor → Advanced settings → **Mihomo REALITY MLKEM**. **Keep original** (default) preserves the imported `reality-opts.support-x25519mlkem768` value, including explicit `false`; absent source values remain absent. **Enable** writes boolean `true`; **Disable** writes boolean `false`. Explicit choices stay attached to the matched node when its subscription refreshes.
+
+The override applies only to final Mihomo output (`client=clash`, `mihomo`, `clashmeta` or `clash-meta`). Other Sub-Store targets, including Egern and Shadowrocket, receive the original source value without this override and use Sub-Store's native mapping. VLESS share links do not carry this setting. Public key, Short ID, SNI, fingerprint, flow and certificate verification are unchanged. This controls one Mihomo option; it is not a general compatibility switch or a guarantee that handshakes will succeed.
+
 ### Node processing: unique names
 
 In “Node Processing, applied during fetch” inside the airport edit dialog, you can configure unique node names:

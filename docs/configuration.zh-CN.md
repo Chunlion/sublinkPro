@@ -57,6 +57,10 @@ SublinkPro 可以使用外部 Sub-Store 后端作为可选 sidecar，为订阅�
 
 ---
 
+## 节点输出设置
+
+**Mihomo REALITY MLKEM** 按 VLESS REALITY 节点保存，与导入的可空布尔值独立。默认**保持原值**，订阅刷新通过现有节点匹配机制保留用户设置。覆写仅作用于最终 Mihomo 输出；其他 Sub-Store 目标的桥接 YAML 保留未覆写的源值。详见[机场与节点设置](features/airport.zh-CN.md#节点设置mihomo-reality-mlkem)。
+
 ## Cloudflare Tunnel
 
 用户中心的 **Cloudflare Tunnel** 标签页可以托管本机 `cloudflared` 进程，将当前 SublinkPro 实例连接到 Cloudflare Zero Trust 中的 remotely-managed Tunnel。

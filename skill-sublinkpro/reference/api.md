@@ -191,6 +191,8 @@ Base: `/api/v1/nodes`
 - **GET** `/nodes/raw-info` (query: `?id=123`)
 - **POST** `/nodes/update-raw` — **JSON** `{"nodeId":123, "fields":{...}}` (demo-restricted)
 
+For VLESS REALITY nodes, `fields.MihomoRealityMLKEM` accepts `""` (keep original), `"enable"` or `"disable"`. Omission leaves the saved override unchanged. This per-node setting survives subscription refreshes and only overrides `reality-opts.support-x25519mlkem768` for final Mihomo targets (`clash`, `mihomo`, `clashmeta`, `clash-meta`). Node responses include `MihomoRealityMLKEM` and nullable `MihomoRealityMLKEMSource` (imported boolean). Other Sub-Store targets receive source values without this override; ordinary VLESS links do not carry it. It does not change other TLS fields or guarantee successful handshakes.
+
 ---
 
 ## Subscriptions

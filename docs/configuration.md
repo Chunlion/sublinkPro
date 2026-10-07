@@ -57,6 +57,10 @@ Keep the Sub-Store service on a private network or loopback address. SublinkPro 
 
 ---
 
+## Node output settings
+
+**Mihomo REALITY MLKEM** is stored per VLESS REALITY node, independently of the imported nullable boolean. It defaults to **Keep original** and survives subscription refreshes through existing node matching. It applies to final Mihomo output only; bridge YAML for other Sub-Store targets retains source values without the override. See [airport/node settings](features/airport.md#mihomo-reality-mlkem-per-node).
+
 ## Cloudflare Tunnel
 
 The **Cloudflare Tunnel** tab in Application Settings can host the local `cloudflared` process and connect the current SublinkPro instance to a remotely managed Tunnel in Cloudflare Zero Trust.

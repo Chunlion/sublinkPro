@@ -902,9 +902,10 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 		return true
 	}
 
-	buildNodeInfoUpdate := func(existingNode models.Node, linkName string, link string, sourceSort int, contentHash string) models.NodeInfoUpdate {
+	buildNodeInfoUpdate := func(existingNode models.Node, linkName string, link string, sourceSort int, contentHash string, mlkemSource *bool) models.NodeInfoUpdate {
 		update := models.BuildNodeInfoUpdate(existingNode, linkName, link, sourceSort)
 		update.ContentHash = contentHash
+		update.MihomoRealityMLKEMSource = mlkemSource
 		return update
 	}
 
@@ -941,6 +942,7 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 		}
 
 		Node.Link = link
+		Node.MihomoRealityMLKEMSource = proxy.RealityMLKEM()
 		Node.Name = proxy.Name
 		Node.LinkName = proxy.Name
 		Node.NameMode = models.NodeNameModeLink
@@ -970,8 +972,8 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 			nodeStatus = "skipped"
 			backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
 
-			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort {
-				nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash))
+			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort || !equalOptionalBool(existingNode.MihomoRealityMLKEMSource, Node.MihomoRealityMLKEMSource) {
+				nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash, Node.MihomoRealityMLKEMSource))
 				updateCount++
 				nodeStatus = "updated"
 				utils.Info("✏️ 节点【%s】原始信息已变更，将复用现有节点并更新", proxy.Name)
@@ -1353,6 +1355,13 @@ func generateProxyDeduplicationKey(proxy protocol.Proxy, protoType string, field
 }
 
 const defaultImportedECHResolver = "https://dns.alidns.com/dns-query"
+
+func equalOptionalBool(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
 
 // GenerateProxyLink 从 Proxy 结构体生成节点链接
 func GenerateProxyLink(proxy protocol.Proxy) string {

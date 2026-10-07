@@ -662,6 +662,8 @@ func renderPreparedClash(c *gin.Context, prepared preparedClientResponse) {
 }
 
 func buildPreparedMihomoYAML(c *gin.Context, prepared preparedClientResponse) (mihomoBridgeOutput, bool, bool) {
+	// 桥接 YAML 也服务 Sub-Store；只有最终目标是 Mihomo 时才应用节点覆写。
+	applyMLKEMOverride := prepared.ClientType == "clash" || prepared.ClientType == "mihomo" || prepared.ClientType == "clashmeta" || prepared.ClientType == "clash-meta"
 	clashPrepared := prepared
 	clashPrepared.ClientType = "clash"
 	resolved, shouldWriteBody := prepareRendererResponse(c, clashPrepared)
@@ -769,6 +771,7 @@ func buildPreparedMihomoYAML(c *gin.Context, prepared preparedClientResponse) (m
 			urls = append(urls, protocol.Urls{
 				Url:             nodeLink,
 				DialerProxyName: dialerProxy,
+				RealityMLKEM:    nodeRealityMLKEM(v, applyMLKEMOverride),
 			})
 		}
 	}
@@ -819,6 +822,17 @@ func buildPreparedMihomoYAML(c *gin.Context, prepared preparedClientResponse) (m
 		DecodeClash = []byte(res)
 	}
 	return mihomoBridgeOutput{Body: DecodeClash, Resolved: resolved}, true, true
+}
+
+func nodeRealityMLKEM(node models.Node, applyOverride bool) *bool {
+	if applyOverride {
+		switch node.MihomoRealityMLKEM {
+		case "enable", "disable":
+			value := node.MihomoRealityMLKEM == "enable"
+			return &value
+		}
+	}
+	return node.MihomoRealityMLKEMSource
 }
 
 func renderPreparedConvertedClient(c *gin.Context, prepared preparedClientResponse) {

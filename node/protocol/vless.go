@@ -139,6 +139,9 @@ func buildVLESSProxy(link Urls, config OutputConfig) (Proxy, error) {
 	DeleteOpts(grpcOpts)
 	DeleteOpts(xhttpOpts)
 	DeleteOpts(realityOpts)
+	if vless.Query.Security == "reality" && link.RealityMLKEM != nil {
+		realityOpts["support-x25519mlkem768"] = *link.RealityMLKEM
+	}
 	tls := vless.Query.Security != "" && vless.Query.Security != "none"
 	skipCert := config.Cert || vless.Query.AllowInsecure == 1
 	var finalWsOpts, finalH2Opts, finalHttpOpts, finalGrpcOpts, finalXHTTPOpts map[string]any

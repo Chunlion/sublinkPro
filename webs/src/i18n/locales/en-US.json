@@ -1586,6 +1586,11 @@
         "other": "Other settings"
       },
       "selectPlaceholder": "Please select",
+      "mlkem": {
+        "preserve": "Keep original",
+        "enable": "Enable",
+        "disable": "Disable"
+      },
       "fieldCount": "{{count}} fields",
       "viewMode": "View mode",
       "editMode": "Edit mode",

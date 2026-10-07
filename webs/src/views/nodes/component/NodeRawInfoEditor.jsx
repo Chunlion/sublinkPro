@@ -111,6 +111,27 @@ const FieldInput = ({ fieldName, fieldMeta, value, onChange, disabled, fieldSx, 
   const helperText = fieldMeta?.description || '';
   const multiline = fieldMeta?.multiline || String(value ?? '').length > 50;
 
+  if (fieldName === 'MihomoRealityMLKEM') {
+    return (
+      <TextField
+        label="Mihomo REALITY MLKEM"
+        value={value || ''}
+        onChange={(e) => onChange(fieldName, e.target.value)}
+        disabled={disabled}
+        size="small"
+        fullWidth
+        select
+        SelectProps={{ native: true }}
+        InputLabelProps={{ shrink: true }}
+        sx={fieldSx}
+      >
+        <option value="">{t('nodes.rawInfo.mlkem.preserve')}</option>
+        <option value="enable">{t('nodes.rawInfo.mlkem.enable')}</option>
+        <option value="disable">{t('nodes.rawInfo.mlkem.disable')}</option>
+      </TextField>
+    );
+  }
+
   // 布尔类型使用开关
   if (fieldType === 'bool') {
     return (
@@ -295,7 +316,10 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
   // 创建字段元数据映射
   const fieldMetaMap = useMemo(() => {
     if (!currentProtocolMeta?.fields) return {};
-    return buildFieldMetaMap(currentProtocolMeta.fields);
+    return {
+      ...buildFieldMetaMap(currentProtocolMeta.fields),
+      MihomoRealityMLKEM: { group: 'advanced', advanced: true }
+    };
   }, [currentProtocolMeta]);
 
   // 解析节点链接
@@ -310,6 +334,9 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
     parseNodeLink(node.Link)
       .then((res) => {
         if (res.data) {
+          if (res.data.protocol === 'vless' && res.data.fields['Query.Security'] === 'reality') {
+            res.data.fields.MihomoRealityMLKEM = node.MihomoRealityMLKEM || '';
+          }
           setParsedInfo(res.data);
           setEditedFields(res.data.fields || {});
           setExpandedGroups(['basic']);
@@ -320,7 +347,7 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
         setError(t('nodes.rawInfo.messages.parseFailed'));
       })
       .finally(() => setLoading(false));
-  }, [node?.Link, t]);
+  }, [node?.Link, node?.MihomoRealityMLKEM, t]);
 
   useEffect(() => {
     if (!editedFields || Object.keys(editedFields).length === 0) {
@@ -351,6 +378,12 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
     };
 
     Object.keys(editedFields).forEach((fieldName) => {
+      if (fieldName === 'MihomoRealityMLKEM') {
+        if (parsedInfo?.protocol === 'vless' && editedFields['Query.Security'] === 'reality') {
+          groups.advanced.push(fieldName);
+        }
+        return;
+      }
       const group = getFieldGroupKey(fieldName, fieldMetaMap[fieldName]);
       const targetGroup = groups[group] ? group : 'other';
       groups[targetGroup].push(fieldName);
@@ -364,14 +397,21 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
     });
 
     return groups;
-  }, [editedFields, fieldMetaMap]);
+  }, [editedFields, fieldMetaMap, parsedInfo?.protocol]);
 
   // 处理字段值变更
   const handleFieldChange = (fieldName, value) => {
-    setEditedFields((prev) => ({
-      ...prev,
-      [fieldName]: value
-    }));
+    setEditedFields((prev) => {
+      const fields = { ...prev, [fieldName]: value };
+      if (parsedInfo?.protocol === 'vless' && fieldName === 'Query.Security') {
+        if (value === 'reality') {
+          fields.MihomoRealityMLKEM = node.MihomoRealityMLKEM || '';
+        } else {
+          delete fields.MihomoRealityMLKEM;
+        }
+      }
+      return fields;
+    });
   };
 
   // 重置编辑
@@ -388,7 +428,11 @@ export default function NodeRawInfoEditor({ node, protocolMeta, onUpdate, showMe
 
     setSaving(true);
     try {
-      const res = await updateNodeRawInfo(node.ID, editedFields);
+      const fields = { ...editedFields };
+      if (parsedInfo?.protocol !== 'vless' || fields['Query.Security'] !== 'reality') {
+        delete fields.MihomoRealityMLKEM;
+      }
+      const res = await updateNodeRawInfo(node.ID, fields);
       if (res.data) {
         showMessage?.(t('common.saveSuccess'), 'success');
         setEditMode(false);

@@ -530,6 +530,7 @@ func NodeAdd(c *gin.Context) {
 				n.Name = models.GenerateUniqueNodeName(proxy.Name, 0, nil)
 				n.NameMode = models.NodeNameModeLink
 				n.Link = proxyLink
+				n.MihomoRealityMLKEMSource = proxy.RealityMLKEM()
 				n.LinkName = proxy.Name
 				n.LinkHost = proxy.Server
 				n.LinkPort = strconv.Itoa(proxy.Port.Int())

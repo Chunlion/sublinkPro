@@ -57,6 +57,10 @@ type Node struct {
 	QualityFamily      string    `gorm:"size:16;default:''"`
 	UnlockSummary      string    `gorm:"type:text"`
 	UnlockCheckAt      string
+
+	MihomoRealityMLKEM string `gorm:"column:mihomo_reality_mlkem;size:16;default:''"`
+	// 源值独立于用户覆写保存；普通 VLESS 分享链接无法携带 Mihomo 专用字段。
+	MihomoRealityMLKEMSource *bool `gorm:"column:mihomo_reality_mlkem_source"`
 }
 
 type NodeSelectorItem struct {
@@ -474,6 +478,9 @@ func UpdateNodeFields(id int, updates map[string]any) error {
 		}
 		if linkCountry, ok := updates["link_country"].(string); ok {
 			cachedNode.LinkCountry = linkCountry
+		}
+		if mlkem, ok := updates["mihomo_reality_mlkem"].(string); ok {
+			cachedNode.MihomoRealityMLKEM = mlkem
 		}
 		cachedNode.EffectiveNameValue = cachedNode.EffectiveName()
 		nodeCache.Set(id, cachedNode)
@@ -1848,6 +1855,8 @@ func UpdateNodesBySourceID(sourceID int, sourceName string, group string) error 
 
 // NodeInfoUpdate 节点信息更新项（用于订阅拉取时批量更新原始名称/链接）。
 type NodeInfoUpdate struct {
+	MihomoRealityMLKEMSource *bool
+
 	ID              int
 	Name            string
 	LinkName        string
@@ -1863,6 +1872,8 @@ type NodeInfoUpdate struct {
 // BuildNodeInfoUpdate 根据现有节点生成订阅刷新更新项，保留名称同步所需上下文。
 func BuildNodeInfoUpdate(existing Node, linkName string, link string, sourceSort int) NodeInfoUpdate {
 	return NodeInfoUpdate{
+		MihomoRealityMLKEMSource: existing.MihomoRealityMLKEMSource,
+
 		ID:              existing.ID,
 		Name:            existing.NameAfterLinkNameUpdate(linkName),
 		LinkName:        linkName,
@@ -1902,6 +1913,8 @@ func BatchUpdateNodeInfo(updates []NodeInfoUpdate) (int, error) {
 }
 
 type nodeInfoUpdatePlan struct {
+	MihomoRealityMLKEMSource *bool
+
 	ID          int
 	Name        string
 	SyncName    bool
@@ -2026,6 +2039,8 @@ func prepareNodeInfoUpdatePlan(update NodeInfoUpdate, nameState *nodeInfoNameSta
 	}
 
 	return nodeInfoUpdatePlan{
+		MihomoRealityMLKEMSource: update.MihomoRealityMLKEMSource,
+
 		ID:          update.ID,
 		Name:        newName,
 		SyncName:    syncName,
@@ -2077,6 +2092,7 @@ func tryBatchUpdateNodeInfoWithCaseWhen(plans []nodeInfoUpdatePlan) (int, error)
 	appendCaseColumn("link_name", func(plan nodeInfoUpdatePlan) any { return plan.LinkName })
 	appendCaseColumn("link", func(plan nodeInfoUpdatePlan) any { return plan.Link })
 	appendCaseColumn("link_hash", func(plan nodeInfoUpdatePlan) any { return plan.LinkHash })
+	appendCaseColumn("mihomo_reality_mlkem_source", func(plan nodeInfoUpdatePlan) any { return plan.MihomoRealityMLKEMSource })
 	if hasNodeInfoContentHash(plans) {
 		if !first {
 			sb.WriteString(", ")
@@ -2173,6 +2189,7 @@ func updateNodeInfoCache(plan nodeInfoUpdatePlan) {
 		cachedNode.LinkName = plan.LinkName
 		cachedNode.Link = plan.Link
 		cachedNode.LinkHash = plan.LinkHash
+		cachedNode.MihomoRealityMLKEMSource = plan.MihomoRealityMLKEMSource
 		if plan.ContentHash != "" {
 			cachedNode.ContentHash = plan.ContentHash
 		}
@@ -2189,11 +2206,12 @@ func fallbackToIndividualNodeInfoUpdate(updates []NodeInfoUpdate) int {
 	for _, update := range updates {
 		plan := prepareNodeInfoUpdatePlan(update, nil, currentDBTime())
 		fields := map[string]any{
-			"link_name":   plan.LinkName,
-			"link":        plan.Link,
-			"link_hash":   plan.LinkHash,
-			"source_sort": plan.SourceSort,
-			"updated_at":  plan.UpdatedAt,
+			"mihomo_reality_mlkem_source": plan.MihomoRealityMLKEMSource,
+			"link_name":                   plan.LinkName,
+			"link":                        plan.Link,
+			"link_hash":                   plan.LinkHash,
+			"source_sort":                 plan.SourceSort,
+			"updated_at":                  plan.UpdatedAt,
 		}
 		if plan.ContentHash != "" {
 			fields["content_hash"] = plan.ContentHash
@@ -2744,6 +2762,7 @@ func InitNodeFieldsMeta() {
 		"Tags": true, "SpeedCheckAt": true, "LatencyCheckAt": true,
 		"Speed": true, "DelayTime": true, "SpeedStatus": true, "DelayStatus": true,
 		"EffectiveNameValue": true,
+		"MihomoRealityMLKEM": true,
 	}
 
 	// 字段中文标签映射

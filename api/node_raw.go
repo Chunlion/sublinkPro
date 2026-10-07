@@ -65,6 +65,13 @@ func UpdateNodeRawInfo(c *gin.Context) {
 	}
 
 	// 将字段转为 JSON
+	mlkemSetting, hasMLKEMSetting := req.Fields["MihomoRealityMLKEM"]
+	mlkemMode, validMLKEMSetting := mlkemSetting.(string)
+	delete(req.Fields, "MihomoRealityMLKEM")
+	if hasMLKEMSetting && (!validMLKEMSetting || (mlkemMode != "" && mlkemMode != "enable" && mlkemMode != "disable")) {
+		utils.FailWithMsg(c, "Mihomo REALITY MLKEM 设置无效")
+		return
+	}
 	fieldsJSON, err := json.Marshal(req.Fields)
 	if err != nil {
 		utils.FailWithMsg(c, "字段序列化失败")
@@ -102,6 +109,13 @@ func UpdateNodeRawInfo(c *gin.Context) {
 	updates := map[string]any{
 		"link": newLink,
 	}
+	if hasMLKEMSetting {
+		if newInfo.Protocol != "vless" || newInfo.Fields["Query.Security"] != "reality" {
+			utils.FailWithMsg(c, "Mihomo REALITY MLKEM 仅适用于 VLESS REALITY 节点")
+			return
+		}
+		updates["mihomo_reality_mlkem"] = mlkemMode
+	}
 	if newLinkName != "" {
 		updates["link_name"] = newLinkName
 		// link 模式或历史“备注=原始名称”的节点继续同步备注；remark 模式下保留用户自定义备注。
@@ -121,6 +135,9 @@ func UpdateNodeRawInfo(c *gin.Context) {
 
 	// 更新缓存
 	node.Link = newLink
+	if hasMLKEMSetting {
+		node.MihomoRealityMLKEM = mlkemMode
+	}
 	if newLinkName != "" {
 		node.LinkName = newLinkName
 		if _, ok := updates["name"]; ok {
