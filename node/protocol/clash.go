@@ -188,6 +188,27 @@ type Proxy struct {
 	Allowed_ips    []string `yaml:"allowed-ips,omitempty"`    // 允许的 IP 段
 	Version        int      `yaml:"version,omitempty"`        // 版本
 	Token          string   `yaml:"token,omitempty"`          // Tuic 令牌v4
+	// OpenVPN 特有字段
+	Proto                string            `yaml:"proto,omitempty"`                 // OpenVPN 传输协议 (tcp/udp)
+	Dev                  string            `yaml:"dev,omitempty"`                   // OpenVPN 设备类型（当前 Mihomo 支持 tun）
+	Data_ciphers         []string          `yaml:"data-ciphers,omitempty"`          // OpenVPN 数据通道加密算法列表
+	Data_cipher_fallback string            `yaml:"data-ciphers-fallback,omitempty"` // OpenVPN 数据通道回退加密算法
+	Comp_lzo             string            `yaml:"comp-lzo,omitempty"`              // OpenVPN LZO 压缩模式
+	Ca                   string            `yaml:"ca,omitempty"`                    // OpenVPN CA 证书
+	Cert                 string            `yaml:"cert,omitempty"`                  // OpenVPN 客户端证书
+	Key                  string            `yaml:"key,omitempty"`                   // OpenVPN 客户端私钥
+	Tls_auth             string            `yaml:"tls-auth,omitempty"`              // OpenVPN tls-auth 静态密钥
+	Key_direction        string            `yaml:"key-direction,omitempty"`         // OpenVPN 静态密钥方向
+	Tls_crypt            string            `yaml:"tls-crypt,omitempty"`             // OpenVPN tls-crypt 静态密钥
+	Tls_crypt_v2         string            `yaml:"tls-crypt-v2,omitempty"`          // OpenVPN tls-crypt-v2 客户端密钥
+	Peer_info            map[string]string `yaml:"peer-info,omitempty"`             // OpenVPN Peer Info
+	Ping                 int               `yaml:"ping,omitempty"`                  // OpenVPN keepalive ping 间隔
+	Ping_restart         int               `yaml:"ping-restart,omitempty"`          // OpenVPN ping 超时重连时间
+	Tran_window          *int              `yaml:"tran-window,omitempty"`           // OpenVPN 数据通道密钥转换窗口
+	Handshake_timeout    int               `yaml:"handshake-timeout,omitempty"`     // OpenVPN 握手超时时间
+	Ip_stack             map[string]any    `yaml:"ip-stack,omitempty"`              // OpenVPN 用户态 IP 栈配置
+	Remote_dns_resolve   bool              `yaml:"remote-dns-resolve,omitempty"`    // 通过远端解析 DNS
+	Dns                  []string          `yaml:"dns,omitempty"`                   // OpenVPN DNS 服务器
 	// VLESS 特有字段
 	Encryption      string         `yaml:"encryption,omitempty"`
 	Packet_encoding string         `yaml:"packet-encoding,omitempty"` // VLESS packet-encoding (xudp/packetaddr)
@@ -195,6 +216,7 @@ type Proxy struct {
 	Http_opts       map[string]any `yaml:"http-opts,omitempty"`       // HTTP 传输层选项
 	XHTTP_opts      map[string]any `yaml:"xhttp-opts,omitempty"`
 	ECH_opts        map[string]any `yaml:"ech-opts,omitempty"`
+	ClashExtra      yaml.Node      `yaml:"-"` // 导入时未被模型识别的 Clash 顶层属性
 }
 
 func sanitizeCertificateFingerprint(fingerprint string) string {
@@ -226,6 +248,7 @@ type Urls struct {
 	RealityMLKEM    *bool
 	Url             string
 	DialerProxyName string
+	ClashExtra      string
 }
 
 // RealityMLKEM 返回 Mihomo YAML 的源值，nil 与显式 false 必须保持不同。
@@ -356,7 +379,14 @@ func LinkToProxy(link Urls, config OutputConfig) (Proxy, error) {
 	if !ok {
 		return Proxy{}, fmt.Errorf("protocol %s does not support proxy export", protocol.Name())
 	}
-	return proxyCapable.ToProxy(link, config)
+	proxy, err := proxyCapable.ToProxy(link, config)
+	if err != nil {
+		return Proxy{}, err
+	}
+	if err := ApplyClashExtra(&proxy, link.ClashExtra); err != nil {
+		return Proxy{}, err
+	}
+	return proxy, nil
 }
 
 // EncodeClash 用于生成 Clash 配置文件

@@ -17,8 +17,10 @@ import (
 	"sublink/config"
 	"sublink/database"
 	"sublink/models"
+	backupservice "sublink/services/backup"
 	"sublink/services/mihomo"
 	"sublink/services/scheduler"
+	socks5service "sublink/services/socks5"
 	"sublink/services/telegram"
 	"sublink/utils"
 
@@ -139,6 +141,15 @@ func executeDatabaseMigration(ctx context.Context, taskID, uploadPath, originalN
 	if err != nil {
 		return nil, fmt.Errorf("打开源 SQLite 数据库失败: %w", err)
 	}
+	sourceSQLDB, err := sourceDB.DB()
+	if err != nil {
+		return nil, fmt.Errorf("获取源 SQLite 连接失败: %w", err)
+	}
+	defer func() {
+		if closeErr := sourceSQLDB.Close(); closeErr != nil {
+			utils.Warn("关闭源 SQLite 连接失败: %v", closeErr)
+		}
+	}()
 
 	result := &DatabaseMigrationResult{
 		SourceName: originalName,
@@ -498,32 +509,34 @@ func looksLikeSQLiteFile(path string) bool {
 	return string(header) == "SQLite format 3\x00"
 }
 
-func extractMigrationZip(zipPath string) (tempDir string, err error) {
+func extractMigrationZip(zipPath string) (string, error) {
+	tempRoot, err := ensureDatabaseMigrationTempRoot()
+	if err != nil {
+		return "", err
+	}
+	return extractMigrationZipTo(zipPath, tempRoot)
+}
+
+func extractMigrationZipTo(zipPath, tempRoot string) (string, error) {
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return "", fmt.Errorf("读取迁移压缩包失败: %w", err)
 	}
 	defer func() { _ = reader.Close() }()
 
-	tempRoot, err := ensureDatabaseMigrationTempRoot()
-	if err != nil {
-		return "", err
-	}
-
-	tempDir, err = os.MkdirTemp(tempRoot, "bundle-*")
+	tempDir, err := os.MkdirTemp(tempRoot, "bundle-*")
 	if err != nil {
 		return "", fmt.Errorf("创建迁移临时目录失败: %w", err)
 	}
+	succeeded := false
 	defer func() {
-		if err != nil {
+		if !succeeded {
 			_ = os.RemoveAll(tempDir)
 		}
 	}()
-
 	if err := validateMigrationArchive(reader.File); err != nil {
 		return "", err
 	}
-
 	var extractedSize int64
 	for _, file := range reader.File {
 		cleanName := filepath.Clean(filepath.FromSlash(file.Name))
@@ -580,6 +593,7 @@ func extractMigrationZip(zipPath string) (tempDir string, err error) {
 		}
 	}
 
+	succeeded = true
 	return tempDir, nil
 }
 
@@ -589,6 +603,9 @@ func validateMigrationArchive(files []*zip.File) error {
 	}
 	var extractedSize uint64
 	for _, file := range files {
+		if file.FileInfo().Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("迁移压缩包包含不允许的符号链接: %s", file.Name)
+		}
 		if file.UncompressedSize64 > uint64(databaseMigrationExtractSizeLimit)-extractedSize {
 			return fmt.Errorf("迁移压缩包解压大小超过限制 %d bytes", databaseMigrationExtractSizeLimit)
 		}
@@ -644,7 +661,7 @@ func checkDatabaseMigrationContext(ctx context.Context) error {
 
 func loadPreservedTargetSettings(tx *gorm.DB) (map[string]string, error) {
 	result := make(map[string]string)
-	for _, key := range []string{"jwt_secret", "cloudflared_enabled", "cloudflared_tunnel_token_encrypted"} {
+	for _, key := range preservedTargetSettingKeys() {
 		var setting models.SystemSetting
 		err := tx.Where(map[string]any{"key": key}).Take(&setting).Error
 		if err == nil {
@@ -672,6 +689,7 @@ func clearTargetBusinessData(tx *gorm.DB) error {
 		&models.SubcriptionGroup{},
 		&models.TagRule{},
 		&models.AccessKey{},
+		&models.NodeCheckJob{},
 		&models.NodeCheckProfile{},
 		&models.Host{},
 		&models.Template{},
@@ -748,13 +766,19 @@ func importSystemSettings(state *databaseMigrationState) error {
 	return nil
 }
 
+func preservedTargetSettingKeys() []string {
+	keys := []string{"jwt_secret", "api_encryption_key", "cloudflared_enabled", "cloudflared_tunnel_token_encrypted"}
+	keys = append(keys, backupservice.PreservedSettingKeys()...)
+	return append(keys, socks5service.PreservedSettingKeys()...)
+}
+
 func shouldPreserveTargetSetting(key string) bool {
-	switch key {
-	case "jwt_secret", "cloudflared_enabled", "cloudflared_tunnel_token_encrypted":
-		return true
-	default:
-		return false
+	for _, preserved := range preservedTargetSettingKeys() {
+		if key == preserved {
+			return true
+		}
 	}
+	return false
 }
 
 func importWebhooks(state *databaseMigrationState) error {
@@ -1252,6 +1276,17 @@ func importNodeCheckProfiles(state *databaseMigrationState) error {
 		return fmt.Errorf("导入节点检测策略失败: %w", err)
 	}
 	state.result.Imported["node_check_profiles"] = len(profiles)
+	// 独立任务与方案保留原 ID，恢复后继续引用同一方案。
+	if state.source.Migrator().HasTable(&models.NodeCheckJob{}) {
+		var jobs []models.NodeCheckJob
+		if err := state.source.Find(&jobs).Error; err != nil {
+			return err
+		}
+		if err := insertRecords(state.tx, jobs); err != nil {
+			return err
+		}
+		state.result.Imported["node_check_jobs"] = len(jobs)
+	}
 	return nil
 }
 
@@ -1457,6 +1492,8 @@ func templateDirPath() string {
 }
 
 func reloadRuntimeStateAfterMigration() error {
+	// Existing sessions/adapters must not keep routing through pre-restore nodes.
+	socks5service.DefaultManager().Stop()
 	config.Load()
 
 	cache.InvalidateAllTemplateContent()
@@ -1499,6 +1536,12 @@ func reloadRuntimeStateAfterMigration() error {
 
 	if err := mihomo.SyncHostsFromDB(); err != nil {
 		utils.Warn("迁移后同步 Host 到 mihomo 失败: %v", err)
+	}
+
+	if !models.IsDemoMode() {
+		if err := socks5service.DefaultManager().StartFromSettings(); err != nil {
+			utils.Warn("迁移后重新加载 SOCKS5 网关失败，网关保持停用: %v", err)
+		}
 	}
 
 	telegramConfig, err := telegram.LoadConfig()
@@ -1587,6 +1630,7 @@ func sequenceTables(tx *gorm.DB) []string {
 		&models.SubscriptionChainRule{},
 		&models.Airport{},
 		&models.GroupAirportSort{},
+		&models.NodeCheckJob{},
 		&models.NodeCheckProfile{},
 		&models.Webhook{},
 	}

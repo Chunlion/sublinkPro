@@ -140,6 +140,9 @@ func DecodeHY2URL(s string) (HY2, error) {
 		return HY2{}, fmt.Errorf("非hy2协议: %s", s)
 	}
 	password := u.User.Username()
+	if userPassword, hasPassword := u.User.Password(); hasPassword {
+		password += ":" + userPassword
+	}
 	server := u.Hostname()
 	port, rawPort, err := parseURLPort(u, 443)
 	if err != nil {

@@ -940,9 +940,15 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 			utils.Warn("节点【%s】生成链接失败，跳过", proxy.Name)
 			continue
 		}
+		clashExtra, err := protocol.EncodeClashExtra(proxy)
+		if err != nil {
+			utils.Warn("节点【%s】未知 Clash 属性序列化失败，跳过: %v", proxy.Name, err)
+			continue
+		}
 
 		Node.Link = link
 		Node.MihomoRealityMLKEMSource = proxy.RealityMLKEM()
+		Node.ClashExtra = clashExtra
 		Node.Name = proxy.Name
 		Node.LinkName = proxy.Name
 		Node.NameMode = models.NodeNameModeLink
@@ -972,8 +978,10 @@ func scheduleClashToNodeLinks(ctx context.Context, id int, proxys []protocol.Pro
 			nodeStatus = "skipped"
 			backfilledCountry := backfillExistingNodeCountry(existingNode, proxy.Name)
 
-			if existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort || !equalOptionalBool(existingNode.MihomoRealityMLKEMSource, Node.MihomoRealityMLKEMSource) {
-				nodesToUpdate = append(nodesToUpdate, buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash, Node.MihomoRealityMLKEMSource))
+			if existingNode.ClashExtra != Node.ClashExtra || existingNode.ContentHash != contentHash || existingNode.LinkName != proxy.Name || existingNode.Link != link || existingNode.SourceSort != Node.SourceSort || !equalOptionalBool(existingNode.MihomoRealityMLKEMSource, Node.MihomoRealityMLKEMSource) {
+				update := buildNodeInfoUpdate(existingNode, proxy.Name, link, Node.SourceSort, contentHash, Node.MihomoRealityMLKEMSource)
+				update.ClashExtra = Node.ClashExtra
+				nodesToUpdate = append(nodesToUpdate, update)
 				updateCount++
 				nodeStatus = "updated"
 				utils.Info("✏️ 节点【%s】原始信息已变更，将复用现有节点并更新", proxy.Name)

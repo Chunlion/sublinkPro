@@ -44,10 +44,10 @@ func applyNodeQualityInfo(node *models.Node, quality *mihomo.QualityCheckResult)
 // RunSpeedTestWithConfig 使用指定配置执行节点测速（并发安全）
 // 每个任务使用独立的配置实例，完全避免配置覆盖问题
 // 采用两阶段测试策略：阶段一并发测延迟，阶段二低并发测速度
-func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, profileName string, config *SpeedTestConfig) {
+func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, profileName string, config *SpeedTestConfig) (runErr error) {
 	if len(nodes) == 0 {
 		utils.Warn("没有要检测的节点")
-		return
+		return fmt.Errorf("没有要检测的节点")
 	}
 
 	totalNodes := len(nodes)
@@ -58,7 +58,7 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 	task, ctx, err := tm.CreateTask(models.TaskTypeSpeedTest, profileName, trigger, totalNodes)
 	if err != nil {
 		utils.Error("创建检测任务失败: %v", err)
-		return
+		return err
 	}
 	taskID := task.ID
 
@@ -66,14 +66,15 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 	defer func() {
 		if r := recover(); r != nil {
 			utils.Error("测速任务执行过程中发生严重错误: %v", r)
-			_ = tm.FailTask(taskID, fmt.Sprintf("任务执行异常: %v", r))
+			runErr = fmt.Errorf("任务执行异常: %v", r)
+			_ = tm.FailTask(taskID, runErr.Error())
 		}
 	}()
 
 	// 检查是否已被取消
 	if ctx.Err() != nil {
 		utils.Info("任务已被取消: %s", taskID)
-		return
+		return ctx.Err()
 	}
 
 	// 从配置对象读取参数（并发安全，不再访问全局Settings）
@@ -262,6 +263,18 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 			// TCP模式下需要检测IP（因为没有速度测试阶段），mihomo模式在速度阶段检测
 			detectIPInLatency := detectCountry && speedTestMode == "tcp"
 			detectQualityInLatency := detectQuality && speedTestMode == "tcp"
+
+			// 准备 dialer 参数（如果节点配置了前置代理）
+			dialerName := ""
+			dialerLink := ""
+			if n.DialerProxyName != "" {
+				// 查找 dialer 节点（按名称或 LinkName）
+				if dialerNode, found := models.GetNodeByName(n.DialerProxyName); found && dialerNode != nil {
+					dialerName = dialerNode.EffectiveName()
+					dialerLink = dialerNode.Link
+				}
+			}
+
 			latency, landingIP, qualityInfo, err := mihomo.MihomoDelayTest(
 				n.Link,
 				latencyTestUrl,
@@ -271,6 +284,8 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 				landingIPUrl,
 				detectQualityInLatency,
 				qualityCheckURL,
+				dialerName,
+				dialerLink,
 			)
 
 			mu.Lock()
@@ -420,6 +435,7 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 		utils.Info("任务被取消，跳过阶段二 (已完成: %d/%d)", completedCount, totalNodes)
 		_ = tm.UpdateProgress(taskID, int(completedCount), "已取消", nil)
 		// 任务已被 CancelTask 标记为取消，无需再次更新
+		runErr = fmt.Errorf("任务已取消")
 		goto applyTags
 	}
 
@@ -521,6 +537,17 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 				}
 
 				// 速度测试（延迟已在阶段一获取，同时可选检测落地IP）
+				// 准备 dialer 参数（如果节点配置了前置代理）
+				dialerName := ""
+				dialerLink := ""
+				if result.node.DialerProxyName != "" {
+					// 查找 dialer 节点（按名称或 LinkName）
+					if dialerNode, found := models.GetNodeByName(result.node.DialerProxyName); found && dialerNode != nil {
+						dialerName = dialerNode.EffectiveName()
+						dialerLink = dialerNode.Link
+					}
+				}
+
 				speed, _, bytesDownloaded, landingIP, qualityInfo, err := mihomo.MihomoSpeedTest(
 					result.node.Link,
 					speedTestUrl,
@@ -531,6 +558,8 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 					qualityCheckURL,
 					speedRecordMode,
 					peakSampleInterval,
+					dialerName,
+					dialerLink,
 				)
 
 				mu.Lock()
@@ -711,6 +740,7 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 	// 检查最终是否被取消
 	if cancelled || ctx.Err() != nil {
 		utils.Info("任务被取消")
+		runErr = fmt.Errorf("任务已取消")
 		goto applyTags
 	}
 
@@ -718,6 +748,8 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 	if len(speedTestResults) > 0 {
 		if err := models.BatchUpdateSpeedResults(speedTestResults); err != nil {
 			utils.Error("批量更新测速结果失败: %v", err)
+			_ = tm.FailTask(taskID, "保存检测结果失败: "+err.Error())
+			return err
 		} else {
 			utils.Debug("批量更新测速结果成功，共 %d 条记录", len(speedTestResults))
 		}
@@ -852,6 +884,7 @@ applyTags:
 		node.RefreshUsageForSubscriptionNodes(nodes)
 	}()
 
+	return runErr
 }
 
 // ExecuteNodeCheckWithProfile 使用指定策略执行节点检测
@@ -919,7 +952,9 @@ func ExecuteNodeCheckWithProfile(profileID int, nodeIDs []int, trigger models.Ta
 	config := SpeedTestConfigFromProfile(profile)
 
 	// 执行检测（使用策略名称作为任务名，传递独立配置）
-	RunSpeedTestWithConfig(nodes, trigger, profile.Name, config)
+	if err := RunSpeedTestWithConfig(nodes, trigger, profile.Name, config); err != nil {
+		utils.Warn("节点检测结束: %v", err)
+	}
 
 	// 更新策略的上次执行时间（保留现有的下次执行时间）
 	if err := profile.UpdateLastRunTime(new(time.Now())); err != nil {
