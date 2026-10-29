@@ -124,6 +124,73 @@ func TestHY2RejectsInvalidCertificateFingerprint(t *testing.T) {
 	assertEqualString(t, "ProxyInvalidFingerprintDropped", "", proxy.Fingerprint)
 }
 
+func TestHY2NativePortHopping(t *testing.T) {
+	const fingerprint = "16dac3717024eb319093d1c95290c14adc850e2814b2208d11c7b7a436923859"
+	cases := []struct {
+		name  string
+		link  string
+		host  string
+		ports string
+	}{
+		{"IPv4 range", "hysteria2://test%40password@192.0.2.1:24443-24543/?", "192.0.2.1", "24443-24543"},
+		{"uppercase scheme", "HY2://test%40password@example.com:24443-24543/?", "example.com", "24443-24543"},
+		{"domain list", "hy2://test%40password@example.com:24443-24543,25000/?", "example.com", "24443-24543,25000"},
+		{"IPv6 list", "hysteria2://test%40password@[2001:db8::1]:24443,25000-25100/?", "2001:db8::1", "24443,25000-25100"},
+		{"legacy mport", "hy2://test%40password@example.com:24443/?mport=24443-24543,25000&", "example.com", "24443-24543,25000"},
+		{"explicit mport", "hy2://test%40password@example.com:24443-24543/?mport=25000-25100&", "example.com", "25000-25100"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			link := tc.link + "obfs=salamander&obfs-password=test-obfs&insecure=1&pinSHA256=" + fingerprint + "#port-hopping"
+			decoded, err := DecodeHY2URL(link)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertEqualString(t, "Host", tc.host, decoded.Host)
+			assertEqualIntInterface(t, "Port", 24443, decoded.Port)
+			assertEqualString(t, "MPort", tc.ports, decoded.MPort)
+			assertEqualString(t, "Password", "test@password", decoded.Password)
+			assertEqualString(t, "Name", "port-hopping", decoded.Name)
+			assertEqualString(t, "ObfsPassword", "test-obfs", decoded.ObfsPassword)
+			assertEqualString(t, "Fingerprint", fingerprint, decoded.Fingerprint)
+
+			identity, err := ExtractLinkIdentity(link)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertEqualString(t, "IdentityHost", tc.host, identity.Host)
+			proxy, err := buildHY2Proxy(Urls{Url: link}, OutputConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertEqualString(t, "ProxyPorts", tc.ports, proxy.Ports)
+			assertEqualString(t, "ProxyFingerprint", fingerprint, proxy.Fingerprint)
+			roundTrip, err := DecodeHY2URL(EncodeHY2URL(ConvertProxyToHy2(proxy)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertEqualString(t, "RoundTripHost", tc.host, roundTrip.Host)
+			assertEqualString(t, "RoundTripPorts", tc.ports, roundTrip.MPort)
+			assertEqualString(t, "RoundTripFingerprint", fingerprint, roundTrip.Fingerprint)
+			line, _, err := buildHY2SurgeLine(link, OutputConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertContains(t, "SurgePorts", line, "port-hopping="+strings.ReplaceAll(tc.ports, ",", ";"))
+		})
+	}
+}
+
+func TestHY2RejectsInvalidNativePortHopping(t *testing.T) {
+	for _, ports := range []string{"0-100", "100-0", "65535-65536", "24543-24443", "24443-24543,,25000", "24443-bad"} {
+		t.Run(ports, func(t *testing.T) {
+			if _, err := DecodeHY2URL("hysteria2://password@example.com:" + ports); err == nil {
+				t.Fatal("expected invalid hopping ports to be rejected")
+			}
+		})
+	}
+}
+
 func TestHysteriaDefaultPortIsUsedInGeneratedName(t *testing.T) {
 	hy, err := DecodeHYURL("hy://example.com?auth=test")
 	if err != nil {

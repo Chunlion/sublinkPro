@@ -976,9 +976,9 @@ export default function NodeList() {
       // WireGuard 或 Clash YAML 配置文件格式，保持原样不分割
       nodeLinks = [nodeForm.link.trim()];
     } else {
-      // 常规链接格式，按换行符和逗号分割
+      // 逗号仅在下一条链接前分隔节点，保留 HY2 端口列表和查询参数中的逗号。
       nodeLinks = nodeForm.link
-        .split(/[\r\n,]/)
+        .split(/[\r\n]+|,\s*(?=[a-z][a-z0-9+.-]*:\/\/)/i)
         .map((item) => item.trim())
         .filter((item) => item !== '');
     }

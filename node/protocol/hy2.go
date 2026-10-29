@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -93,10 +94,45 @@ func EncodeHY2URL(hy2 HY2) string {
 	return u.String()
 }
 
+// parseHY2URL 将 URL authority 中的跳跃端口拆成基础端口与 MPort，避免 net/url 拒绝非数字端口。
+func parseHY2URL(s string) (*url.URL, string, error) {
+	u, err := url.Parse(s)
+	if err == nil {
+		return u, "", nil
+	}
+	scheme, rest, ok := strings.Cut(s, "://")
+	scheme = strings.ToLower(scheme)
+	if !ok || (scheme != "hy2" && scheme != "hysteria2") {
+		return nil, "", err
+	}
+	authorityEnd := strings.IndexAny(rest, "/?#")
+	if authorityEnd < 0 {
+		authorityEnd = len(rest)
+	}
+	authority := rest[:authorityEnd]
+	userEnd := strings.LastIndex(authority, "@") + 1
+	host, rawPorts, splitErr := net.SplitHostPort(authority[userEnd:])
+	if splitErr != nil || !strings.ContainsAny(rawPorts, "-,") {
+		return nil, "", err
+	}
+	ports := strings.Split(rawPorts, ",")
+	for i, port := range ports {
+		normalized, valid := normalizePortRange(port)
+		if !valid {
+			return nil, "", fmt.Errorf("无效端口范围: %s", rawPorts)
+		}
+		ports[i] = normalized
+	}
+	firstPort, _, _ := strings.Cut(ports[0], "-")
+	normalized := scheme + "://" + authority[:userEnd] + formatURLHostPort(host, firstPort) + rest[authorityEnd:]
+	u, err = url.Parse(normalized)
+	return u, strings.Join(ports, ","), err
+}
+
 // DecodeHY2URL 解析 hy2:// 与 hysteria2:// 链接，并兼容 auth 缺省时回退为 password 的写法。
 // 当链接未显式给出端口时，解析结果中的端口字段会按当前约定回退到 443。
 func DecodeHY2URL(s string) (HY2, error) {
-	u, err := url.Parse(s)
+	u, hoppingPorts, err := parseHY2URL(s)
 	if err != nil {
 		return HY2{}, fmt.Errorf("解析失败的URL: %s,错误:%s", s, err)
 	}
@@ -118,6 +154,9 @@ func DecodeHY2URL(s string) (HY2, error) {
 	downMbps, _ := strconv.Atoi(u.Query().Get("downmbps"))
 	alpns := u.Query().Get("alpn")
 	mport := u.Query().Get("mport")
+	if mport == "" {
+		mport = hoppingPorts
+	}
 	alpn := strings.Split(alpns, ",")
 	if alpns == "" {
 		alpn = nil
@@ -187,6 +226,9 @@ func ConvertProxyToHy2(proxy Proxy) HY2 {
 		ClientFingerprint: proxy.Client_fingerprint,
 		Fingerprint:       sanitizeCertificateFingerprint(proxy.Fingerprint),
 		Peer:              proxy.Peer,
+	}
+	if proxy.Port == 0 && hy2.MPort != "" {
+		hy2.Port = mportFirstPort(surgePortHopping(hy2.MPort))
 	}
 
 	// 处理跳过证书验证

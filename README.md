@@ -181,6 +181,8 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 | **clash / mihomo** | ss, ssr, trojan, vmess, vless, hy, hy2, tuic, AnyTLS, Socks5, HTTP, HTTPS, Mieru, Snell |
 | **surge** | ss, trojan, vmess, hy2, tuic, AnyTLS, Snell |
 
+Hysteria2 port hopping accepts both `hy2://password@server:24443-24543,25000` and `hy2://password@server:24443?mport=24443-24543,25000`; Clash/mihomo and Surge exports preserve the hopping ports.
+
 > [!NOTE]
 > Mieru currently supports Clash/mihomo YAML import and export only. Official Mieru has `mieru://` and `mierus://` share links, but does not define a general URL schema suitable for field by field editing. For raw editing and Clash/mihomo import write back, SublinkPro uses an internal editable form: `mieru://username:password@server:port?...#name`, with port ranges written as `portRange=2090-2099`. v2ray and Surge don't support Mieru in SublinkPro. Subscription output skips that protocol instead of converting it to a downgraded form.
 

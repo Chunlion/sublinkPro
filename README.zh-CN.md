@@ -181,6 +181,8 @@ docker-compose up -d
 | **clash / mihomo** | ss, ssr, trojan, vmess, vless, hy, hy2, tuic, AnyTLS, Socks5, HTTP, HTTPS, Mieru, Snell |
 | **surge** | ss, trojan, vmess, hy2, tuic, AnyTLS, Snell |
 
+Hysteria2 端口跳跃支持 `hy2://password@server:24443-24543,25000` 和 `hy2://password@server:24443?mport=24443-24543,25000` 两种写法，导出 Clash/mihomo 和 Surge 时保留跳跃端口。
+
 > [!NOTE]
 > Mieru 当前仅支持 Clash/mihomo YAML 导入与导出。Mieru 官方存在 `mieru://` / `mierus://` 分享链接，但未定义适合逐字段编辑的通用 URL schema；SublinkPro 为原始编辑与 Clash/mihomo 导入回写使用内部可编辑形态：`mieru://username:password@server:port?...#name`，端口范围使用 `portRange=2090-2099`。v2ray 与 Surge 当前不支持 Mieru，订阅输出会跳过该协议而不是降级转换。
 

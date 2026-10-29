@@ -43,13 +43,6 @@ func GetMihomoAdapter(nodeLink string) (constant.Proxy, error) {
 		Cert: true, // Skip cert verify by default for better compatibility? Or false?
 	}
 
-	// Parse the link to get basic info
-	// We need to construct a Urls struct
-	_, err := url.Parse(nodeLink)
-	if err != nil {
-		return nil, fmt.Errorf("parse link error: %v", err)
-	}
-
 	// We need to handle the case where ParseNodeLink might be better, but LinkToProxy expects Urls struct
 	// LinkToProxy handles various protocols
 	proxyStruct, err := protocol.LinkToProxy(protocol.Urls{Url: nodeLink}, outputConfig)
