@@ -9,7 +9,11 @@ import (
 
 // GroupSortGroups 获取所有分组概要信息
 func GroupSortGroups(c *gin.Context) {
-	infos := models.GetAllGroupInfos()
+	infos, err := models.GetAllGroupInfos()
+	if err != nil {
+		utils.FailWithMsg(c, "获取分组列表失败: "+err.Error())
+		return
+	}
 	utils.OkWithData(c, infos)
 }
 
@@ -30,9 +34,9 @@ func GroupSortDetail(c *gin.Context) {
 	utils.OkWithData(c, detail)
 }
 
-// GroupSortSave 保存分组内机场排序
+// GroupSortSave 保存分组内机场或节点排序
 func GroupSortSave(c *gin.Context) {
-	var req models.SaveGroupAirportSortsRequest
+	var req models.SaveGroupSortRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.FailWithMsg(c, "参数错误")
 		return
@@ -43,7 +47,13 @@ func GroupSortSave(c *gin.Context) {
 		return
 	}
 
-	if err := models.SaveGroupAirportSorts(req.GroupName, req.AirportSorts); err != nil {
+	var err error
+	if req.NodeIDs != nil {
+		err = models.SaveGroupNodeOrder(req.GroupName, req.NodeIDs)
+	} else {
+		err = models.SaveGroupAirportSorts(req.GroupName, req.AirportSorts)
+	}
+	if err != nil {
 		utils.FailWithMsg(c, "保存排序失败: "+err.Error())
 		return
 	}

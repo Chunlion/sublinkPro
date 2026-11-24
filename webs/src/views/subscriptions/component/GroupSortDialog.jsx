@@ -23,6 +23,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 
 // icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -36,7 +38,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 // project imports
-import { getGroupSortGroups, getGroupSortDetail, saveGroupAirportSort, resetGroupAirportSort } from 'api/groupSort';
+import { getGroupSortGroups, getGroupSortDetail, saveGroupAirportSort, saveGroupNodeOrder } from 'api/groupSort';
 import useResolvedColorScheme from 'hooks/useResolvedColorScheme';
 import { getReadableTextTokens, getSurfaceTokens } from 'themes/surfaceTokens';
 import { withAlpha } from 'utils/colorUtils';
@@ -55,10 +57,12 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
 
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('');
-  const [airports, setAirports] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [mode, setMode] = useState('nodes');
+  const [detail, setDetail] = useState(null);
+  const [drafts, setDrafts] = useState({});
+  const [loadStatus, setLoadStatus] = useState('');
+  const [detailVersion, setDetailVersion] = useState(0);
+  const [saving, setSaving] = useState('');
   const [searchText, setSearchText] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
@@ -83,81 +87,82 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
     }
   }, [handleSnackbar, t]);
 
-  const loadGroupDetail = useCallback(
-    async (groupName) => {
-      if (!groupName) return;
-      setLoading(true);
-      try {
-        const res = await getGroupSortDetail(groupName);
-        setAirports(res.data?.airports || []);
-      } catch (err) {
-        console.error('Failed to load group detail:', err);
-        handleSnackbar(t('subscriptions.sort.messages.loadGroupDetailFailed'), 'error');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [handleSnackbar, t]
-  );
-
   useEffect(() => {
     if (open) {
       loadGroups();
-      setSelectedGroup('');
-      setAirports([]);
-      setSearchText('');
     }
   }, [open, loadGroups]);
 
-  const handleSelectGroup = (groupName) => {
-    setSelectedGroup(groupName);
-    loadGroupDetail(groupName);
+  useEffect(() => {
+    if (!open || !selectedGroup) return;
+    let active = true;
+    setLoadStatus('loading');
+    getGroupSortDetail(selectedGroup)
+      .then(({ data }) => {
+        if (!active) return;
+        setDetail(data);
+        setLoadStatus('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadStatus('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, selectedGroup, detailVersion]);
+
+  const handleClose = () => {
+    if (saving) return;
+    setSelectedGroup('');
+    setDetail(null);
+    setDrafts({});
+    setLoadStatus('');
+    setMode('nodes');
+    setSearchText('');
+    onClose();
   };
+
+  const isNodeMode = mode === 'nodes';
+  const items = detail?.groupName === selectedGroup ? (drafts[mode] ?? detail[mode] ?? []) : [];
 
   const handleDragEnd = (result) => {
-    if (!result.destination) return;
-    const items = Array.from(airports);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-    const updated = items.map((item, index) => ({ ...item, sort: index }));
-    setAirports(updated);
+    if (!result.destination || saving) return;
+    const reordered = [...items];
+    const [item] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, item);
+    setDrafts({ ...drafts, [mode]: reordered });
   };
 
-  const handleSave = async () => {
-    if (!selectedGroup) return;
-    setSaving(true);
+  const handleSave = async (reset = false) => {
+    setSaving(reset ? 'reset' : 'save');
     try {
-      const airportSorts = airports.map((a, index) => ({
-        airportId: a.airportId,
-        sort: index
-      }));
-      await saveGroupAirportSort({ groupName: selectedGroup, airportSorts });
-      handleSnackbar(t('subscriptions.sort.messages.saveSuccess'), 'success');
+      const order = reset ? [] : items;
+      if (isNodeMode) {
+        await saveGroupNodeOrder(
+          selectedGroup,
+          order.map((node) => node.id)
+        );
+      } else {
+        await saveGroupAirportSort({
+          groupName: selectedGroup,
+          airportSorts: order.map((airport, sort) => ({ airportId: airport.airportId, sort }))
+        });
+      }
+      setDrafts((current) => ({ ...current, [mode]: undefined }));
+      setLoadStatus('loading');
+      setDetailVersion((version) => version + 1);
+      handleSnackbar(t(reset ? 'subscriptions.sort.messages.resetSuccess' : 'subscriptions.sort.messages.saveSuccess'), 'success');
       loadGroups();
     } catch {
-      handleSnackbar(t('subscriptions.sort.messages.saveFailed'), 'error');
+      handleSnackbar(t(reset ? 'subscriptions.sort.messages.resetFailed' : 'subscriptions.sort.messages.saveFailed'), 'error');
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    if (!selectedGroup) return;
-    setResetting(true);
-    try {
-      await resetGroupAirportSort(selectedGroup);
-      await loadGroupDetail(selectedGroup);
-      await loadGroups();
-      handleSnackbar(t('subscriptions.sort.messages.resetSuccess'), 'success');
-    } catch {
-      handleSnackbar(t('subscriptions.sort.messages.resetFailed'), 'error');
-    } finally {
-      setResetting(false);
+      setSaving('');
     }
   };
 
   const filteredGroups = groups.filter((g) => !searchText || g.groupName.toLowerCase().includes(searchText.toLowerCase()));
-  const isSortActionDisabled = loading || saving || resetting || airports.length === 0;
+  const isSortActionDisabled = loadStatus !== 'ready' || Boolean(saving) || items.length === 0;
 
   const listItemHoverSurface = withAlpha(palette.primary.main, isDark ? 0.12 : 0.06);
   const listItemSelectedSurface = withAlpha(palette.primary.main, isDark ? 0.18 : 0.1);
@@ -230,7 +235,7 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
     <>
       <Dialog
         open={open}
-        onClose={onClose}
+        onClose={handleClose}
         maxWidth="md"
         fullWidth
         fullScreen={isMobile}
@@ -259,14 +264,20 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                   variant="outlined"
                   size="small"
                   startIcon={<RestartAltIcon />}
-                  onClick={handleReset}
+                  onClick={() => handleSave(true)}
                   disabled={isSortActionDisabled}
                   sx={{ borderColor: panelBorder, color: secondaryText }}
                 >
-                  {resetting ? t('subscriptions.sort.resetting') : t('subscriptions.sort.resetSort')}
+                  {saving === 'reset' ? t('subscriptions.sort.resetting') : t('subscriptions.sort.resetSort')}
                 </Button>
-                <Button variant="contained" size="small" startIcon={<SaveIcon />} onClick={handleSave} disabled={isSortActionDisabled}>
-                  {saving ? t('subscriptions.sort.saving') : t('subscriptions.sort.saveSort')}
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<SaveIcon />}
+                  onClick={() => handleSave()}
+                  disabled={isSortActionDisabled}
+                >
+                  {saving === 'save' ? t('subscriptions.sort.saving') : t('subscriptions.sort.saveSort')}
                 </Button>
               </Stack>
             )}
@@ -317,7 +328,13 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                       <ListItem key={group.groupName} disablePadding divider sx={{ borderColor: listItemDivider }}>
                         <ListItemButton
                           selected={selectedGroup === group.groupName}
-                          onClick={() => handleSelectGroup(group.groupName)}
+                          onClick={() => {
+                            if (group.groupName === selectedGroup) return;
+                            setLoadStatus('loading');
+                            setDrafts({});
+                            setSelectedGroup(group.groupName);
+                          }}
+                          disabled={Boolean(saving)}
                           sx={{
                             alignItems: 'flex-start',
                             px: 2,
@@ -399,14 +416,21 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                       {t('subscriptions.sort.selectGroupPrompt')}
                     </Typography>
                   </Box>
-                ) : loading ? (
+                ) : loadStatus === 'loading' ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                     <CircularProgress />
                   </Box>
-                ) : airports.length === 0 ? (
+                ) : loadStatus === 'error' ? (
+                  <Alert
+                    severity="error"
+                    action={<Button onClick={() => setDetailVersion((version) => version + 1)}>{t('common.refresh')}</Button>}
+                  >
+                    {t('subscriptions.sort.messages.loadGroupDetailFailed')}
+                  </Alert>
+                ) : items.length === 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, p: 4 }}>
                     <Typography variant="body1" sx={{ color: secondaryText }}>
-                      {t('subscriptions.sort.noAirportsInGroup')}
+                      {t(isNodeMode ? 'subscriptions.sort.noNodesInGroup' : 'subscriptions.sort.noAirportsInGroup')}
                     </Typography>
                   </Box>
                 ) : (
@@ -415,16 +439,25 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                       <Typography variant="subtitle1" sx={{ fontWeight: 700, color: primaryText }}>
                         {selectedGroup}
                       </Typography>
+                      <Tabs value={mode} onChange={(_, value) => setMode(value)} aria-label={t('subscriptions.sort.groupSort')}>
+                        <Tab value="nodes" label={t('subscriptions.sort.byNode')} disabled={Boolean(saving)} />
+                        <Tab value="airports" label={t('subscriptions.sort.byAirport')} disabled={Boolean(saving)} />
+                      </Tabs>
                       <Typography variant="caption" sx={{ color: secondaryText }}>
-                        {t('subscriptions.sort.dragAirportHint')}
+                        {t(isNodeMode ? 'subscriptions.sort.dragNodeHint' : 'subscriptions.sort.dragAirportHint')}
                       </Typography>
                     </Box>
                     <DragDropContext onDragEnd={handleDragEnd}>
-                      <Droppable droppableId="airportSortList">
+                      <Droppable droppableId={mode}>
                         {(provided) => (
                           <List {...provided.droppableProps} ref={provided.innerRef} sx={{ py: 0, bgcolor: nestedPanelSurface }}>
-                            {airports.map((airport, index) => (
-                              <Draggable key={`airport-${airport.airportId}`} draggableId={`airport-${airport.airportId}`} index={index}>
+                            {items.map((item, index) => (
+                              <Draggable
+                                key={`${mode}-${isNodeMode ? item.id : item.airportId}`}
+                                draggableId={`${mode}-${isNodeMode ? item.id : item.airportId}`}
+                                index={index}
+                                isDragDisabled={Boolean(saving)}
+                              >
                                 {(provided, snapshot) => (
                                   <ListItem
                                     ref={provided.innerRef}
@@ -457,18 +490,20 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                                       <DragIndicatorIcon sx={{ color: secondaryText, cursor: 'grab' }} />
                                       <Chip label={index + 1} size="small" sx={indexChipSx} />
                                       <Typography variant="body2" sx={{ flex: 1, color: primaryText, fontWeight: 600 }} noWrap>
-                                        {airport.airportName}
+                                        {isNodeMode ? item.name : item.airportName}
                                       </Typography>
-                                      <Chip
-                                        label={t('subscriptions.sort.nodeCount', { count: airport.nodeCount })}
-                                        size="small"
-                                        variant="outlined"
-                                        color="primary"
-                                        sx={{
-                                          bgcolor: withAlpha(palette.primary.main, isDark ? 0.1 : 0.05),
-                                          borderColor: withAlpha(palette.primary.main, isDark ? 0.28 : 0.18)
-                                        }}
-                                      />
+                                      {!isNodeMode && (
+                                        <Chip
+                                          label={t('subscriptions.sort.nodeCount', { count: item.nodeCount })}
+                                          size="small"
+                                          variant="outlined"
+                                          color="primary"
+                                          sx={{
+                                            bgcolor: withAlpha(palette.primary.main, isDark ? 0.1 : 0.05),
+                                            borderColor: withAlpha(palette.primary.main, isDark ? 0.28 : 0.18)
+                                          }}
+                                        />
+                                      )}
                                     </Stack>
                                   </ListItem>
                                 )}
@@ -495,7 +530,12 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
             borderColor: panelBorder
           }}
         >
-          <Button onClick={onClose} variant="outlined" sx={{ borderColor: panelBorder, color: secondaryText }}>
+          <Button
+            onClick={handleClose}
+            disabled={Boolean(saving)}
+            variant="outlined"
+            sx={{ borderColor: panelBorder, color: secondaryText }}
+          >
             {t('common.close')}
           </Button>
         </DialogActions>

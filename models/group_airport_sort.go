@@ -54,6 +54,12 @@ type GroupAirportDetail struct {
 type GroupDetailResponse struct {
 	GroupName string               `json:"groupName"`
 	Airports  []GroupAirportDetail `json:"airports"`
+	Nodes     []GroupNodeDetail    `json:"nodes"`
+}
+
+type GroupNodeDetail struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 // GetGroupDetail 获取分组详情（聚合分组内的机场列表及排序）
@@ -64,6 +70,7 @@ func GetGroupDetail(groupName string) (*GroupDetailResponse, error) {
 		return &GroupDetailResponse{
 			GroupName: groupName,
 			Airports:  []GroupAirportDetail{},
+			Nodes:     []GroupNodeDetail{},
 		}, nil
 	}
 
@@ -129,9 +136,20 @@ func GetGroupDetail(groupName string) (*GroupDetailResponse, error) {
 		airports[i].Sort = i
 	}
 
+	nodeOrders, err := GetGroupNodeOrders([]string{groupName})
+	if err != nil {
+		return nil, err
+	}
+	groupNodes = SortGroupNodes(groupName, groupNodes, nodeOrders[groupName])
+	nodes := make([]GroupNodeDetail, 0, len(groupNodes))
+	for _, node := range groupNodes {
+		nodes = append(nodes, GroupNodeDetail{ID: node.ID, Name: node.EffectiveName()})
+	}
+
 	return &GroupDetailResponse{
 		GroupName: groupName,
 		Airports:  airports,
+		Nodes:     nodes,
 	}, nil
 }
 
@@ -141,10 +159,10 @@ type AirportSortItem struct {
 	Sort      int `json:"sort"`
 }
 
-// SaveGroupAirportSortsRequest 保存分组机场排序的请求
-type SaveGroupAirportSortsRequest struct {
+type SaveGroupSortRequest struct {
 	GroupName    string            `json:"groupName"`
 	AirportSorts []AirportSortItem `json:"airportSorts"`
+	NodeIDs      []int             `json:"nodeIds"`
 }
 
 // SaveGroupAirportSorts 保存分组内机场排序（事务删旧 + 批量插新 + 更新缓存）
@@ -238,12 +256,19 @@ type GroupInfo struct {
 }
 
 // GetAllGroupInfos 获取所有分组的概要信息
-func GetAllGroupInfos() []GroupInfo {
+func GetAllGroupInfos() ([]GroupInfo, error) {
 	groupNames := GetAllGroupNames()
 	configuredGroups := make(map[string]bool)
 	all := groupAirportSortCache.GetAll()
 	for _, s := range all {
 		configuredGroups[s.GroupName] = true
+	}
+	var nodeOrderGroups []string
+	if err := database.DB.Model(&GroupNodeOrder{}).Pluck("group_name", &nodeOrderGroups).Error; err != nil {
+		return nil, err
+	}
+	for _, name := range nodeOrderGroups {
+		configuredGroups[name] = true
 	}
 
 	infos := make([]GroupInfo, 0, len(groupNames))
@@ -261,7 +286,7 @@ func GetAllGroupInfos() []GroupInfo {
 			HasSortConfig: configuredGroups[name],
 		})
 	}
-	return infos
+	return infos, nil
 }
 
 // CleanupAirportSortRecords 清理指定机场的所有排序记录（机场删除时调用）

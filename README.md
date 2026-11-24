@@ -59,7 +59,7 @@ English | [简体中文](README.zh-CN.md)
 | 🔗 **Chain proxy** | Native Dialer-Proxy support, visual configuration, IP quality based node selection | [📖](docs/features/chain-proxy.md) |
 | 🤖 **AI template editing** | Generate operation based previews from natural language, review read-only diffs, accept into the editor, then save normally | [📖](docs/features/template-ai.md) |
 | ✈️ **Airport management** | Multi format import, scheduled updates, traffic monitoring, one click full refresh, per-node Mihomo REALITY MLKEM settings | [📖](docs/features/airport.md) |
-| 🗂️ **Group ordering** | Drag airport priority within a group to control node order in subscription output | [📖](docs/development.md) |
+| 🗂️ **Group ordering** | Drag nodes or airports within a group to control subscription output order | [📖](docs/features/subscription-share.md#node-selection-sources) |
 | 📋 **Subscription sharing** | Multiple links, expiration policies, access statistics | [📖](docs/features/subscription-share.md) |
 | 🌐 **Host management** | Domain mappings, DNS configuration, CDN preferred IPs | [📖](docs/features/host.md) |
 | ☁️ **Cloudflare Tunnel** | Expose the admin UI without a public IP, with cloudflared managed from the page | [📖](docs/features/cloudflare-tunnel.md) |

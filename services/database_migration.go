@@ -351,6 +351,9 @@ func executeDatabaseMigration(ctx context.Context, taskID, uploadPath, originalN
 		if err := reportStep(fmt.Sprintf("分组机场排序导入完成，共 %d 条", state.result.Imported["group_airport_sorts"]), nil); err != nil {
 			return err
 		}
+		if err := importGroupNodeOrders(state); err != nil {
+			return err
+		}
 
 		if err := importNodeCheckProfiles(state); err != nil {
 			return err
@@ -683,6 +686,7 @@ func clearTargetBusinessData(tx *gorm.DB) error {
 		&models.SubscriptionShare{},
 		&models.SubscriptionChainRule{},
 		&models.GroupAirportSort{},
+		&models.GroupNodeOrder{},
 		&models.SubcriptionNode{},
 		&models.SubcriptionAirport{},
 		&models.SubcriptionScript{},
@@ -1244,6 +1248,21 @@ func importGroupAirportSorts(state *databaseMigrationState) error {
 		return fmt.Errorf("导入分组机场排序失败: %w", err)
 	}
 	state.result.Imported["group_airport_sorts"] = len(records)
+	return nil
+}
+
+func importGroupNodeOrders(state *databaseMigrationState) error {
+	if !state.source.Migrator().HasTable(&models.GroupNodeOrder{}) {
+		return nil
+	}
+	var records []models.GroupNodeOrder
+	if err := state.source.Find(&records).Error; err != nil {
+		return fmt.Errorf("读取源分组节点排序失败: %w", err)
+	}
+	if err := insertRecords(state.tx, records); err != nil {
+		return fmt.Errorf("导入分组节点排序失败: %w", err)
+	}
+	state.result.Imported["group_node_orders"] = len(records)
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,8 @@ func setupClientsAPITestDB(t *testing.T) {
 		&models.Node{},
 		&models.SubcriptionNode{},
 		&models.SubcriptionGroup{},
+		&models.GroupNodeOrder{},
+		&models.GroupAirportSort{},
 		&models.SubcriptionAirport{},
 		&models.SubcriptionScript{},
 		&models.SubscriptionShare{},
@@ -311,6 +314,100 @@ func performClientRequest(t *testing.T, method, path string) *httptest.ResponseR
 	ginContext.Request = httptest.NewRequestWithContext(context.Background(), method, path, nil)
 	GetClient(ginContext)
 	return recorder
+}
+
+func TestGroupNodeOrderIsSharedByPreviewAndClashExport(t *testing.T) {
+	setupClientsAPITestDB(t)
+	const group = "group-sort-test"
+	const token = "group-sort-test-token"
+	sub := models.Subcription{
+		Name: group, Config: testOutputConfigJSON(t, writeTestClashTemplate(t), ""),
+	}
+	if err := sub.Add(); err != nil {
+		t.Fatal(err)
+	}
+	if err := sub.AddGroups([]string{group}); err != nil {
+		t.Fatal(err)
+	}
+	share := models.SubscriptionShare{SubscriptionID: sub.ID, Token: token, Name: group, ExpireType: models.ExpireTypeNever, Enabled: true}
+	if err := share.Add(); err != nil {
+		t.Fatal(err)
+	}
+
+	addNode := func(name string, sourceID, sourceSort int) int {
+		t.Helper()
+		node := models.Node{
+			Name: name, LinkName: name, Group: group, SourceID: sourceID, SourceSort: sourceSort,
+			Link: "ss://YWVzLTEyOC1nY206cGFzc0BleGFtcGxlLmNvbTo0NDM=#" + name, Protocol: "ss",
+		}
+		if err := node.Add(); err != nil {
+			t.Fatal(err)
+		}
+		return node.ID
+	}
+	a2 := addNode("A2", 101, 2)
+	b1 := addNode("B1", 102, 1)
+	a1 := addNode("A1", 101, 1)
+
+	save := func(request models.SaveGroupSortRequest) {
+		t.Helper()
+		body, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/group-sort/save", strings.NewReader(string(body)))
+		GroupSortSave(ctx)
+		var response struct{ Code int }
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil || response.Code != http.StatusOK {
+			t.Fatalf("save group sort: %s (%v)", recorder.Body.String(), err)
+		}
+	}
+	assertOrder := func(want []string) {
+		t.Helper()
+		detail, err := models.GetGroupDetail(group)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var detailNames []string
+		for _, node := range detail.Nodes {
+			detailNames = append(detailNames, node.Name)
+		}
+		if !slices.Equal(detailNames, want) {
+			t.Errorf("group sort detail = %v, want %v", detailNames, want)
+		}
+		preview, err := previewFormSubscription(PreviewRequest{Groups: []string{group}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var previewNames []string
+		for _, node := range preview.Nodes {
+			previewNames = append(previewNames, node.PreviewName)
+		}
+		if !slices.Equal(previewNames, want) {
+			t.Errorf("subscription preview = %v, want %v", previewNames, want)
+		}
+		export := performClientRequest(t, http.MethodGet, "/c/?token="+token+"&client=clash")
+		if export.Code != http.StatusOK {
+			t.Fatalf("export status = %d: %s", export.Code, export.Body.String())
+		}
+		if names := clashProxyNamesFromBody(t, export.Body.Bytes()); !slices.Equal(names, want) {
+			t.Errorf("Clash export = %v, want %v", names, want)
+		}
+	}
+
+	assertOrder([]string{"A1", "A2", "B1"})
+	save(models.SaveGroupSortRequest{GroupName: group, AirportSorts: []models.AirportSortItem{{AirportID: 102, Sort: 0}}})
+	assertOrder([]string{"B1", "A1", "A2"})
+
+	save(models.SaveGroupSortRequest{GroupName: group, NodeIDs: []int{a2, b1, a1}})
+	addNode("A3", 101, 3)
+	addNode("B2", 102, 2)
+	assertOrder([]string{"A2", "B1", "A1", "B2", "A3"})
+
+	save(models.SaveGroupSortRequest{GroupName: group, NodeIDs: []int{}})
+	assertOrder([]string{"B1", "B2", "A1", "A2", "A3"})
 }
 
 // clashProxyNamesFromBody 从 Clash YAML 输出中提取最终 proxy.name。

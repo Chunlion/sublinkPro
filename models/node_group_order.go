@@ -1,8 +1,59 @@
 package models
 
-import "sort"
+import (
+	"sort"
+	"sublink/database"
+
+	"gorm.io/gorm/clause"
+)
 
 const defaultGroupAirportSortWeight = 999999
+
+type GroupNodeOrder struct {
+	GroupName string `gorm:"primaryKey;size:200"`
+	NodeIDs   []int  `gorm:"serializer:json;type:text"`
+}
+
+func SaveGroupNodeOrder(groupName string, nodeIDs []int) error {
+	if len(nodeIDs) == 0 {
+		return database.DB.Delete(&GroupNodeOrder{GroupName: groupName}).Error
+	}
+	return database.DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "group_name"}},
+		DoUpdates: clause.AssignmentColumns([]string{"node_ids"}),
+	}).Create(&GroupNodeOrder{GroupName: groupName, NodeIDs: nodeIDs}).Error
+}
+
+func GetGroupNodeOrders(groupNames []string) (map[string][]int, error) {
+	if len(groupNames) == 0 {
+		return nil, nil
+	}
+	var orders []GroupNodeOrder
+	if err := database.DB.Where("group_name IN ?", groupNames).Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	byGroup := make(map[string][]int, len(orders))
+	for _, order := range orders {
+		byGroup[order.GroupName] = order.NodeIDs
+	}
+	return byGroup, nil
+}
+
+func SortGroupNodes(groupName string, nodes []Node, nodeIDs []int) []Node {
+	SortNodesByAirport(nodes, GetGroupAirportSortMap(groupName))
+	if len(nodeIDs) == 0 || len(nodes) <= 1 {
+		return nodes
+	}
+	ranks := make(map[int]int, len(nodeIDs))
+	for i, id := range nodeIDs {
+		ranks[id] = i + 1
+	}
+	sort.SliceStable(nodes, func(i, j int) bool {
+		left, right := ranks[nodes[i].ID], ranks[nodes[j].ID]
+		return left > 0 && (right == 0 || left < right)
+	})
+	return nodes
+}
 
 // SortNodesByAirport 对同一分组下的节点做“按机场聚合”的稳定排序，避免不同机场节点穿插。
 //

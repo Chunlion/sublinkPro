@@ -110,6 +110,7 @@ func setupSubcriptionCopyTestDB(t *testing.T) {
 		&Airport{},
 		&SubcriptionNode{},
 		&SubcriptionGroup{},
+		&GroupNodeOrder{},
 		&SubcriptionAirport{},
 		&SubcriptionScript{},
 		&Script{},

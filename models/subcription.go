@@ -714,6 +714,14 @@ func (sub *Subcription) GetSub(clientType string) error {
 	}
 
 	// 获取通过分组动态选择的节点
+	groupNames := make([]string, 0, len(groups))
+	for _, group := range groups {
+		groupNames = append(groupNames, group.GroupName)
+	}
+	nodeOrders, err := GetGroupNodeOrders(groupNames)
+	if err != nil {
+		return err
+	}
 	groupNodeMap := make(map[string][]Node) // groupName -> nodes
 	for _, group := range groups {
 		var groupNodes []Node
@@ -725,11 +733,7 @@ func (sub *Subcription) GetSub(clientType string) error {
 			return err
 		}
 
-		// 按分组内机场排序配置重排节点，避免不同机场节点穿插（同机场内优先按 SourceSort）
-		airportSortMap := GetGroupAirportSortMap(group.GroupName)
-		groupNodes = SortNodesByAirport(groupNodes, airportSortMap)
-
-		groupNodeMap[group.GroupName] = groupNodes
+		groupNodeMap[group.GroupName] = SortGroupNodes(group.GroupName, groupNodes, nodeOrders[group.GroupName])
 	}
 
 	airportNodeMap := make(map[int][]Node)

@@ -186,7 +186,10 @@ func previewFormSubscription(req PreviewRequest) (*models.PreviewResult, error) 
 	}
 
 	// 使用与 GetSub 相同的混合排序逻辑构建节点列表
-	allNodes := buildNodesWithMixedSort(req)
+	allNodes, err := buildNodesWithMixedSort(req)
+	if err != nil {
+		return nil, err
+	}
 	totalCount := len(allNodes)
 
 	// 应用脚本处理（filterNode 脚本）
@@ -231,7 +234,7 @@ func previewFormSubscription(req PreviewRequest) (*models.PreviewResult, error) 
 }
 
 // buildNodesWithMixedSort 使用与 GetSub 相同的混合排序逻辑构建节点列表
-func buildNodesWithMixedSort(req PreviewRequest) []models.Node {
+func buildNodesWithMixedSort(req PreviewRequest) ([]models.Node, error) {
 	// 定义混合排序项
 	type MixedItem struct {
 		Node      *models.Node
@@ -316,7 +319,7 @@ func buildNodesWithMixedSort(req PreviewRequest) []models.Node {
 	}
 
 	if len(mixedItems) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// 按排序值排序混合列表
@@ -325,17 +328,21 @@ func buildNodesWithMixedSort(req PreviewRequest) []models.Node {
 	})
 
 	// 获取分组节点映射
+	nodeOrders, err := models.GetGroupNodeOrders(req.Groups)
+	if err != nil {
+		return nil, err
+	}
 	groupNodeMap := make(map[string][]models.Node)
 	airportNodeMap := make(map[int][]models.Node)
 	for _, item := range mixedItems {
 		switch item.Kind {
 		case "group":
-			var groupNodes []models.Node
 			node := &models.Node{}
-			groupNodes, _ = node.ListByGroups([]string{item.Group})
-			airportSortMap := models.GetGroupAirportSortMap(item.Group)
-			groupNodes = models.SortNodesByAirport(groupNodes, airportSortMap)
-			groupNodeMap[item.Group] = groupNodes
+			groupNodes, err := node.ListByGroups([]string{item.Group})
+			if err != nil {
+				return nil, err
+			}
+			groupNodeMap[item.Group] = models.SortGroupNodes(item.Group, groupNodes, nodeOrders[item.Group])
 		case "airport":
 			airportNodes, err := models.ListNodesByAirportID(item.AirportID)
 			if err != nil {
@@ -384,5 +391,5 @@ func buildNodesWithMixedSort(req PreviewRequest) []models.Node {
 		}
 	}
 
-	return result
+	return result, nil
 }
