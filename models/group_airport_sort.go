@@ -52,14 +52,32 @@ type GroupAirportDetail struct {
 
 // GroupDetailResponse 分组详情响应
 type GroupDetailResponse struct {
-	GroupName string               `json:"groupName"`
-	Airports  []GroupAirportDetail `json:"airports"`
-	Nodes     []GroupNodeDetail    `json:"nodes"`
+	GroupName      string               `json:"groupName"`
+	HasAirportSort bool                 `json:"hasAirportSort"`
+	HasNodeOrder   bool                 `json:"hasNodeOrder"`
+	Airports       []GroupAirportDetail `json:"airports"`
+	Nodes          []GroupNodeDetail    `json:"nodes"`
 }
 
 type GroupNodeDetail struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	AirportID    int     `json:"airportId"`
+	AirportName  string  `json:"airportName"`
+	Protocol     string  `json:"protocol"`
+	DelayTime    int     `json:"delayTime"`
+	Speed        float64 `json:"speed"`
+	InSavedOrder bool    `json:"inSavedOrder"`
+}
+
+func resolveAirportName(airportID int) string {
+	if airportID <= 0 {
+		return "手动添加"
+	}
+	if airport, ok := airportCache.Get(airportID); ok {
+		return airport.Name
+	}
+	return fmt.Sprintf("机场#%d(已删除)", airportID)
 }
 
 // GetGroupDetail 获取分组详情（聚合分组内的机场列表及排序）
@@ -101,14 +119,7 @@ func GetGroupDetail(groupName string) (*GroupDetailResponse, error) {
 	// 构建机场详情列表
 	airports := make([]GroupAirportDetail, 0, len(airportNodeCount))
 	for airportID, count := range airportNodeCount {
-		airportName := "手动添加"
-		if airportID > 0 {
-			if airport, ok := airportCache.Get(airportID); ok {
-				airportName = airport.Name
-			} else {
-				airportName = fmt.Sprintf("机场#%d(已删除)", airportID)
-			}
-		}
+		airportName := resolveAirportName(airportID)
 
 		sortVal := 999999 // 默认排到最后
 		if s, ok := sortMap[airportID]; ok {
@@ -140,16 +151,39 @@ func GetGroupDetail(groupName string) (*GroupDetailResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	groupNodes = SortGroupNodes(groupName, groupNodes, nodeOrders[groupName])
+	savedNodeIDs := nodeOrders[groupName]
+	savedSet := make(map[int]bool, len(savedNodeIDs))
+	for _, id := range savedNodeIDs {
+		if id > 0 {
+			savedSet[id] = true
+		}
+	}
+
+	groupNodes = SortGroupNodes(groupName, groupNodes, savedNodeIDs)
 	nodes := make([]GroupNodeDetail, 0, len(groupNodes))
 	for _, node := range groupNodes {
-		nodes = append(nodes, GroupNodeDetail{ID: node.ID, Name: node.EffectiveName()})
+		proto := node.Protocol
+		if proto == "" && node.Link != "" {
+			proto = utils.GetProtocolFromLink(node.Link)
+		}
+		nodes = append(nodes, GroupNodeDetail{
+			ID:           node.ID,
+			Name:         node.EffectiveName(),
+			AirportID:    node.SourceID,
+			AirportName:  resolveAirportName(node.SourceID),
+			Protocol:     proto,
+			DelayTime:    node.DelayTime,
+			Speed:        node.Speed,
+			InSavedOrder: savedSet[node.ID],
+		})
 	}
 
 	return &GroupDetailResponse{
-		GroupName: groupName,
-		Airports:  airports,
-		Nodes:     nodes,
+		GroupName:      groupName,
+		HasAirportSort: len(existingSorts) > 0,
+		HasNodeOrder:   len(savedNodeIDs) > 0,
+		Airports:       airports,
+		Nodes:          nodes,
 	}, nil
 }
 
@@ -249,26 +283,25 @@ func GetAllGroupNames() []string {
 
 // GroupInfo 分组概要信息
 type GroupInfo struct {
-	GroupName     string `json:"groupName"`
-	NodeCount     int    `json:"nodeCount"`
-	AirportCount  int    `json:"airportCount"`
-	HasSortConfig bool   `json:"hasSortConfig"`
+	GroupName      string `json:"groupName"`
+	NodeCount      int    `json:"nodeCount"`
+	AirportCount   int    `json:"airportCount"`
+	HasSortConfig  bool   `json:"hasSortConfig"`
+	HasAirportSort bool   `json:"hasAirportSort"`
+	HasNodeOrder   bool   `json:"hasNodeOrder"`
 }
 
 // GetAllGroupInfos 获取所有分组的概要信息
 func GetAllGroupInfos() ([]GroupInfo, error) {
 	groupNames := GetAllGroupNames()
-	configuredGroups := make(map[string]bool)
+	airportSortGroups := make(map[string]bool)
 	all := groupAirportSortCache.GetAll()
 	for _, s := range all {
-		configuredGroups[s.GroupName] = true
+		airportSortGroups[s.GroupName] = true
 	}
-	var nodeOrderGroups []string
-	if err := database.DB.Model(&GroupNodeOrder{}).Pluck("group_name", &nodeOrderGroups).Error; err != nil {
+	nodeOrderGroups, err := getGroupNodeOrderGroupSet()
+	if err != nil {
 		return nil, err
-	}
-	for _, name := range nodeOrderGroups {
-		configuredGroups[name] = true
 	}
 
 	infos := make([]GroupInfo, 0, len(groupNames))
@@ -279,11 +312,15 @@ func GetAllGroupInfos() ([]GroupInfo, error) {
 			airportSet[node.SourceID] = true
 		}
 
+		hasAirportSort := airportSortGroups[name]
+		hasNodeOrder := nodeOrderGroups[name]
 		infos = append(infos, GroupInfo{
-			GroupName:     name,
-			NodeCount:     len(groupNodes),
-			AirportCount:  len(airportSet),
-			HasSortConfig: configuredGroups[name],
+			GroupName:      name,
+			NodeCount:      len(groupNodes),
+			AirportCount:   len(airportSet),
+			HasSortConfig:  hasAirportSort || hasNodeOrder,
+			HasAirportSort: hasAirportSort,
+			HasNodeOrder:   hasNodeOrder,
 		})
 	}
 	return infos, nil
@@ -312,5 +349,8 @@ func CleanupGroupSortRecords(groupName string) {
 	}
 	if err := database.DB.Where("group_name = ?", groupName).Delete(&GroupAirportSort{}).Error; err != nil {
 		utils.Warn("清理分组 %s 的排序记录失败: %v", groupName, err)
+	}
+	if err := DeleteGroupNodeOrder(groupName); err != nil {
+		utils.Warn("清理分组 %s 的节点排序记录失败: %v", groupName, err)
 	}
 }

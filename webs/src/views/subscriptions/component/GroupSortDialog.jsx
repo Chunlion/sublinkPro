@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
@@ -7,6 +7,8 @@ import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
@@ -33,16 +35,33 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveIcon from '@mui/icons-material/Save';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop';
+import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 // drag and drop
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 // project imports
 import { getGroupSortGroups, getGroupSortDetail, saveGroupAirportSort, saveGroupNodeOrder } from 'api/groupSort';
+import ConfirmDialog from './ConfirmDialog';
 import useResolvedColorScheme from 'hooks/useResolvedColorScheme';
 import { getReadableTextTokens, getSurfaceTokens } from 'themes/surfaceTokens';
 import { withAlpha } from 'utils/colorUtils';
 import { useTranslation } from 'react-i18next';
+
+function areItemOrdersEqual(left, right, key) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+    return false;
+  }
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i][key] !== right[i][key]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export default function GroupSortDialog({ open, onClose, showMessage }) {
   const theme = useTheme();
@@ -64,6 +83,8 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
   const [detailVersion, setDetailVersion] = useState(0);
   const [saving, setSaving] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [itemSearchText, setItemSearchText] = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const handleSnackbar = useCallback(
@@ -112,29 +133,107 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
     };
   }, [open, selectedGroup, detailVersion]);
 
-  const handleClose = () => {
-    if (saving) return;
+  const isNodeMode = mode === 'nodes';
+  const currentDetail = detail?.groupName === selectedGroup ? detail : null;
+  const items = useMemo(() => {
+    if (!currentDetail) return [];
+    return drafts[mode] ?? currentDetail[mode] ?? [];
+  }, [currentDetail, drafts, mode]);
+
+  const hasNodeChanges = useMemo(
+    () => Boolean(currentDetail && drafts.nodes && !areItemOrdersEqual(drafts.nodes, currentDetail.nodes || [], 'id')),
+    [currentDetail, drafts.nodes]
+  );
+  const hasAirportChanges = useMemo(
+    () => Boolean(currentDetail && drafts.airports && !areItemOrdersEqual(drafts.airports, currentDetail.airports || [], 'airportId')),
+    [currentDetail, drafts.airports]
+  );
+  const isCurrentModeDirty = isNodeMode ? hasNodeChanges : hasAirportChanges;
+  const hasAnyUnsavedChanges = hasNodeChanges || hasAirportChanges;
+  const hasSavedCurrentMode = isNodeMode ? Boolean(currentDetail?.hasNodeOrder) : Boolean(currentDetail?.hasAirportSort);
+
+  const performClose = useCallback(() => {
     setSelectedGroup('');
     setDetail(null);
     setDrafts({});
     setLoadStatus('');
     setMode('nodes');
     setSearchText('');
+    setItemSearchText('');
+    setPendingAction(null);
     onClose();
+  }, [onClose]);
+
+  const performSelectGroup = useCallback((groupName) => {
+    setLoadStatus('loading');
+    setDrafts({});
+    setItemSearchText('');
+    setSelectedGroup(groupName);
+  }, []);
+
+  const handleClose = () => {
+    if (saving) return;
+    if (hasAnyUnsavedChanges) {
+      setPendingAction({ type: 'close' });
+      return;
+    }
+    performClose();
   };
 
-  const isNodeMode = mode === 'nodes';
-  const items = detail?.groupName === selectedGroup ? (drafts[mode] ?? detail[mode] ?? []) : [];
+  const handleGroupClick = (groupName) => {
+    if (groupName === selectedGroup || saving) return;
+    if (hasAnyUnsavedChanges) {
+      setPendingAction({ type: 'selectGroup', groupName });
+      return;
+    }
+    performSelectGroup(groupName);
+  };
+
+  const handleConfirmDiscard = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (!action) return;
+    if (action.type === 'close') {
+      performClose();
+    } else if (action.type === 'selectGroup') {
+      performSelectGroup(action.groupName);
+    }
+  };
 
   const handleDragEnd = (result) => {
-    if (!result.destination || saving) return;
+    if (!result.destination || saving || itemSearchText.trim()) return;
+    if (result.source.index === result.destination.index) return;
     const reordered = [...items];
     const [item] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, item);
-    setDrafts({ ...drafts, [mode]: reordered });
+    setDrafts((current) => ({ ...current, [mode]: reordered }));
+  };
+
+  const handleMoveItem = (itemKey, direction) => {
+    if (saving) return;
+    const keyField = isNodeMode ? 'id' : 'airportId';
+    const index = items.findIndex((entry) => entry[keyField] === itemKey);
+    if (index < 0) return;
+
+    let targetIndex = index;
+    if (direction === 'top') targetIndex = 0;
+    else if (direction === 'up') targetIndex = Math.max(0, index - 1);
+    else if (direction === 'down') targetIndex = Math.min(items.length - 1, index + 1);
+    else if (direction === 'bottom') targetIndex = items.length - 1;
+
+    if (targetIndex === index) return;
+    const reordered = [...items];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setDrafts((current) => ({ ...current, [mode]: reordered }));
   };
 
   const handleSave = async (reset = false) => {
+    if (reset && !hasSavedCurrentMode && isCurrentModeDirty) {
+      setDrafts((current) => ({ ...current, [mode]: undefined }));
+      return;
+    }
+
     setSaving(reset ? 'reset' : 'save');
     try {
       const order = reset ? [] : items;
@@ -162,7 +261,27 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
   };
 
   const filteredGroups = groups.filter((g) => !searchText || g.groupName.toLowerCase().includes(searchText.toLowerCase()));
-  const isSortActionDisabled = loadStatus !== 'ready' || Boolean(saving) || items.length === 0;
+  const trimmedItemSearch = itemSearchText.trim().toLowerCase();
+  const isItemFiltered = trimmedItemSearch.length > 0;
+
+  const indexedVisibleItems = useMemo(() => {
+    return items
+      .map((item, fullIndex) => ({ item, fullIndex }))
+      .filter(({ item }) => {
+        if (!trimmedItemSearch) return true;
+        if (isNodeMode) {
+          return (
+            item.name?.toLowerCase().includes(trimmedItemSearch) ||
+            item.airportName?.toLowerCase().includes(trimmedItemSearch) ||
+            item.protocol?.toLowerCase().includes(trimmedItemSearch)
+          );
+        }
+        return item.airportName?.toLowerCase().includes(trimmedItemSearch);
+      });
+  }, [items, trimmedItemSearch, isNodeMode]);
+
+  const isSaveDisabled = loadStatus !== 'ready' || Boolean(saving) || items.length <= 1 || !isCurrentModeDirty;
+  const isResetDisabled = loadStatus !== 'ready' || Boolean(saving) || items.length === 0 || (!hasSavedCurrentMode && !isCurrentModeDirty);
 
   const listItemHoverSurface = withAlpha(palette.primary.main, isDark ? 0.12 : 0.06);
   const listItemSelectedSurface = withAlpha(palette.primary.main, isDark ? 0.18 : 0.1);
@@ -230,6 +349,195 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
     border: '1px solid',
     borderColor: withAlpha(palette.primary.main, isDark ? 0.28 : 0.18)
   };
+  const metaChipSx = {
+    height: 20,
+    fontSize: '0.7rem',
+    color: secondaryText,
+    bgcolor: withAlpha(palette.text.primary, isDark ? 0.08 : 0.05),
+    border: '1px solid',
+    borderColor: subtleBorder
+  };
+  const quickActionBtnSx = {
+    color: secondaryText,
+    p: 0.5,
+    '&:hover': {
+      color: primaryText,
+      bgcolor: withAlpha(palette.primary.main, isDark ? 0.14 : 0.08)
+    },
+    '&.Mui-disabled': {
+      color: withAlpha(palette.text.primary, isDark ? 0.24 : 0.26)
+    }
+  };
+
+  const renderTabLabel = (label, isConfigured, isUnsaved) => (
+    <Stack direction="row" alignItems="center" spacing={0.75}>
+      <span>{label}</span>
+      {isConfigured && (
+        <Chip
+          size="small"
+          label={t('subscriptions.sort.savedBadge')}
+          color="success"
+          variant="outlined"
+          sx={{ height: 18, fontSize: '0.68rem', '& .MuiChip-label': { px: 0.75 } }}
+        />
+      )}
+      {isUnsaved && (
+        <Chip
+          size="small"
+          label={t('subscriptions.sort.unsaved')}
+          color="warning"
+          variant="outlined"
+          sx={{ height: 18, fontSize: '0.68rem', '& .MuiChip-label': { px: 0.75 } }}
+        />
+      )}
+    </Stack>
+  );
+
+  const renderSortableItem = (item, fullIndex, { ref, draggableProps, dragHandleProps, isDragging = false } = {}) => {
+    const itemKey = isNodeMode ? item.id : item.airportId;
+    const isFirst = fullIndex === 0;
+    const isLast = fullIndex === items.length - 1;
+    return (
+      <ListItem
+        key={`${mode}-${itemKey}`}
+        ref={ref}
+        {...draggableProps}
+        {...dragHandleProps}
+        disableGutters
+        sx={{
+          mx: 1,
+          mt: 1,
+          mb: 0,
+          px: isMobile ? 1.25 : 2,
+          py: 1.25,
+          width: 'auto',
+          bgcolor: isDragging ? draggingSurface : neutralSurface,
+          border: '1px solid',
+          borderColor: isDragging ? draggingBorder : subtleBorder,
+          borderRadius: 2,
+          transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+          ...(isDragging && {
+            boxShadow: theme.shadows[6],
+            transform: 'rotate(0.25deg)'
+          }),
+          '&:hover': {
+            bgcolor: isDragging ? draggingSurface : dragRowSurface,
+            borderColor: isDragging ? draggingBorder : listItemHoverBorder
+          }
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={isMobile ? 1 : 1.5} sx={{ width: '100%', minWidth: 0 }}>
+          <DragIndicatorIcon
+            sx={{
+              color: isItemFiltered ? tertiaryText : secondaryText,
+              cursor: isItemFiltered ? 'default' : 'grab',
+              opacity: isItemFiltered ? 0.45 : 1,
+              flexShrink: 0
+            }}
+          />
+          <Chip label={fullIndex + 1} size="small" sx={{ ...indexChipSx, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={0.75} sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ color: primaryText, fontWeight: 600 }} noWrap>
+                {isNodeMode ? item.name : item.airportName}
+              </Typography>
+              {isNodeMode && currentDetail?.hasNodeOrder && !item.inSavedOrder && (
+                <Chip
+                  label={t('subscriptions.sort.newNodeBadge')}
+                  size="small"
+                  color="info"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.68rem', flexShrink: 0, '& .MuiChip-label': { px: 0.75 } }}
+                />
+              )}
+            </Stack>
+            {isNodeMode && (item.airportName || item.protocol) && (
+              <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+                {item.airportName && <Chip label={item.airportName} size="small" sx={metaChipSx} />}
+                {item.protocol && <Chip label={String(item.protocol).toUpperCase()} size="small" sx={metaChipSx} />}
+              </Stack>
+            )}
+          </Box>
+          {!isNodeMode && (
+            <Chip
+              label={t('subscriptions.sort.nodeCount', { count: item.nodeCount })}
+              size="small"
+              variant="outlined"
+              color="primary"
+              sx={{
+                flexShrink: 0,
+                bgcolor: withAlpha(palette.primary.main, isDark ? 0.1 : 0.05),
+                borderColor: withAlpha(palette.primary.main, isDark ? 0.28 : 0.18)
+              }}
+            />
+          )}
+          {items.length > 1 && (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.25}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              sx={{ flexShrink: 0 }}
+            >
+              <Tooltip title={t('subscriptions.sort.moveTop')}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={Boolean(saving) || isFirst}
+                    onClick={() => handleMoveItem(itemKey, 'top')}
+                    aria-label={t('subscriptions.sort.moveTop')}
+                    sx={quickActionBtnSx}
+                  >
+                    <VerticalAlignTopIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={t('subscriptions.sort.moveUp')}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={Boolean(saving) || isFirst}
+                    onClick={() => handleMoveItem(itemKey, 'up')}
+                    aria-label={t('subscriptions.sort.moveUp')}
+                    sx={quickActionBtnSx}
+                  >
+                    <KeyboardArrowUpIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={t('subscriptions.sort.moveDown')}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={Boolean(saving) || isLast}
+                    onClick={() => handleMoveItem(itemKey, 'down')}
+                    aria-label={t('subscriptions.sort.moveDown')}
+                    sx={quickActionBtnSx}
+                  >
+                    <KeyboardArrowDownIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={t('subscriptions.sort.moveBottom')}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={Boolean(saving) || isLast}
+                    onClick={() => handleMoveItem(itemKey, 'bottom')}
+                    aria-label={t('subscriptions.sort.moveBottom')}
+                    sx={quickActionBtnSx}
+                  >
+                    <VerticalAlignBottomIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          )}
+        </Stack>
+      </ListItem>
+    );
+  };
 
   return (
     <>
@@ -255,9 +563,14 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
       >
         <DialogTitle sx={sectionHeaderSx}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ flexWrap: 'wrap', gap: 1 }}>
-            <Typography variant="h6" sx={{ color: primaryText, fontWeight: 700 }}>
-              {t('subscriptions.sort.groupSort')}
-            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="h6" sx={{ color: primaryText, fontWeight: 700 }}>
+                {t('subscriptions.sort.groupSort')}
+              </Typography>
+              {hasAnyUnsavedChanges && (
+                <Chip size="small" color="warning" variant="outlined" label={t('subscriptions.sort.unsaved')} sx={{ fontWeight: 600 }} />
+              )}
+            </Stack>
             {selectedGroup && (
               <Stack direction="row" spacing={1} alignItems="center">
                 <Button
@@ -265,18 +578,12 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                   size="small"
                   startIcon={<RestartAltIcon />}
                   onClick={() => handleSave(true)}
-                  disabled={isSortActionDisabled}
+                  disabled={isResetDisabled}
                   sx={{ borderColor: panelBorder, color: secondaryText }}
                 >
                   {saving === 'reset' ? t('subscriptions.sort.resetting') : t('subscriptions.sort.resetSort')}
                 </Button>
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<SaveIcon />}
-                  onClick={() => handleSave()}
-                  disabled={isSortActionDisabled}
-                >
+                <Button variant="contained" size="small" startIcon={<SaveIcon />} onClick={() => handleSave()} disabled={isSaveDisabled}>
                   {saving === 'save' ? t('subscriptions.sort.saving') : t('subscriptions.sort.saveSort')}
                 </Button>
               </Stack>
@@ -328,12 +635,7 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                       <ListItem key={group.groupName} disablePadding divider sx={{ borderColor: listItemDivider }}>
                         <ListItemButton
                           selected={selectedGroup === group.groupName}
-                          onClick={() => {
-                            if (group.groupName === selectedGroup) return;
-                            setLoadStatus('loading');
-                            setDrafts({});
-                            setSelectedGroup(group.groupName);
-                          }}
+                          onClick={() => handleGroupClick(group.groupName)}
                           disabled={Boolean(saving)}
                           sx={{
                             alignItems: 'flex-start',
@@ -434,86 +736,123 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
                     </Typography>
                   </Box>
                 ) : (
-                  <Box sx={{ flex: 1, overflow: 'auto' }}>
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <Box sx={sectionHeaderSx}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700, color: primaryText }}>
                         {selectedGroup}
                       </Typography>
-                      <Tabs value={mode} onChange={(_, value) => setMode(value)} aria-label={t('subscriptions.sort.groupSort')}>
-                        <Tab value="nodes" label={t('subscriptions.sort.byNode')} disabled={Boolean(saving)} />
-                        <Tab value="airports" label={t('subscriptions.sort.byAirport')} disabled={Boolean(saving)} />
+                      <Tabs
+                        value={mode}
+                        onChange={(_, value) => {
+                          setMode(value);
+                          setItemSearchText('');
+                        }}
+                        aria-label={t('subscriptions.sort.groupSort')}
+                        sx={{ minHeight: 40, mt: 0.5 }}
+                      >
+                        <Tab
+                          value="nodes"
+                          label={renderTabLabel(t('subscriptions.sort.byNode'), Boolean(currentDetail?.hasNodeOrder), hasNodeChanges)}
+                          disabled={Boolean(saving)}
+                          sx={{ minHeight: 40, py: 0.75 }}
+                        />
+                        <Tab
+                          value="airports"
+                          label={renderTabLabel(
+                            t('subscriptions.sort.byAirport'),
+                            Boolean(currentDetail?.hasAirportSort),
+                            hasAirportChanges
+                          )}
+                          disabled={Boolean(saving)}
+                          sx={{ minHeight: 40, py: 0.75 }}
+                        />
                       </Tabs>
-                      <Typography variant="caption" sx={{ color: secondaryText }}>
+                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: secondaryText }}>
                         {t(isNodeMode ? 'subscriptions.sort.dragNodeHint' : 'subscriptions.sort.dragAirportHint')}
                       </Typography>
+                      {!isNodeMode && currentDetail?.hasNodeOrder && (
+                        <Alert severity="info" sx={{ mt: 1, py: 0.25 }}>
+                          {t('subscriptions.sort.nodeOrderPrecedenceHint')}
+                        </Alert>
+                      )}
+                      {items.length > 1 && (
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder={t(isNodeMode ? 'subscriptions.sort.searchNodes' : 'subscriptions.sort.searchAirports')}
+                          value={itemSearchText}
+                          onChange={(e) => setItemSearchText(e.target.value)}
+                          sx={{ ...searchFieldSx, mt: 1.25 }}
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <SearchIcon fontSize="small" sx={{ color: secondaryText }} />
+                                </InputAdornment>
+                              ),
+                              endAdornment: itemSearchText && (
+                                <InputAdornment
+                                  position="end"
+                                  sx={{ cursor: 'pointer', color: secondaryText }}
+                                  onClick={() => setItemSearchText('')}
+                                >
+                                  <ClearIcon fontSize="small" />
+                                </InputAdornment>
+                              )
+                            }
+                          }}
+                        />
+                      )}
+                      {isItemFiltered && (
+                        <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: tertiaryText }}>
+                          {t('subscriptions.sort.dragDisabledWhileFiltering')}
+                        </Typography>
+                      )}
                     </Box>
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                      <Droppable droppableId={mode}>
-                        {(provided) => (
-                          <List {...provided.droppableProps} ref={provided.innerRef} sx={{ py: 0, bgcolor: nestedPanelSurface }}>
-                            {items.map((item, index) => (
-                              <Draggable
-                                key={`${mode}-${isNodeMode ? item.id : item.airportId}`}
-                                draggableId={`${mode}-${isNodeMode ? item.id : item.airportId}`}
-                                index={index}
-                                isDragDisabled={Boolean(saving)}
-                              >
-                                {(provided, snapshot) => (
-                                  <ListItem
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    disableGutters
-                                    sx={{
-                                      mx: 1,
-                                      mt: 1,
-                                      mb: 0,
-                                      px: 2,
-                                      py: 1.5,
-                                      bgcolor: snapshot.isDragging ? draggingSurface : neutralSurface,
-                                      border: '1px solid',
-                                      borderColor: snapshot.isDragging ? draggingBorder : subtleBorder,
-                                      borderRadius: 2,
-                                      transition:
-                                        'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
-                                      ...(snapshot.isDragging && {
-                                        boxShadow: theme.shadows[6],
-                                        transform: 'rotate(0.25deg)'
-                                      }),
-                                      '&:hover': {
-                                        bgcolor: snapshot.isDragging ? draggingSurface : dragRowSurface,
-                                        borderColor: snapshot.isDragging ? draggingBorder : listItemHoverBorder
+
+                    <Box sx={{ flex: 1, overflow: 'auto', bgcolor: nestedPanelSurface, pb: 1 }}>
+                      {indexedVisibleItems.length === 0 ? (
+                        <Box sx={{ p: 4, textAlign: 'center' }}>
+                          <Typography variant="body2" sx={{ color: secondaryText }}>
+                            {t('common.noMatch')}
+                          </Typography>
+                        </Box>
+                      ) : isItemFiltered ? (
+                        <List sx={{ py: 0, bgcolor: nestedPanelSurface }}>
+                          {indexedVisibleItems.map(({ item, fullIndex }) => renderSortableItem(item, fullIndex))}
+                        </List>
+                      ) : (
+                        <DragDropContext onDragEnd={handleDragEnd}>
+                          <Droppable droppableId={mode}>
+                            {(provided) => (
+                              <List {...provided.droppableProps} ref={provided.innerRef} sx={{ py: 0, bgcolor: nestedPanelSurface }}>
+                                {indexedVisibleItems.map(({ item, fullIndex }) => {
+                                  const itemKey = isNodeMode ? item.id : item.airportId;
+                                  return (
+                                    <Draggable
+                                      key={`${mode}-${itemKey}`}
+                                      draggableId={`${mode}-${itemKey}`}
+                                      index={fullIndex}
+                                      isDragDisabled={Boolean(saving)}
+                                    >
+                                      {(provided, snapshot) =>
+                                        renderSortableItem(item, fullIndex, {
+                                          ref: provided.innerRef,
+                                          draggableProps: provided.draggableProps,
+                                          dragHandleProps: provided.dragHandleProps,
+                                          isDragging: snapshot.isDragging
+                                        })
                                       }
-                                    }}
-                                  >
-                                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ width: '100%' }}>
-                                      <DragIndicatorIcon sx={{ color: secondaryText, cursor: 'grab' }} />
-                                      <Chip label={index + 1} size="small" sx={indexChipSx} />
-                                      <Typography variant="body2" sx={{ flex: 1, color: primaryText, fontWeight: 600 }} noWrap>
-                                        {isNodeMode ? item.name : item.airportName}
-                                      </Typography>
-                                      {!isNodeMode && (
-                                        <Chip
-                                          label={t('subscriptions.sort.nodeCount', { count: item.nodeCount })}
-                                          size="small"
-                                          variant="outlined"
-                                          color="primary"
-                                          sx={{
-                                            bgcolor: withAlpha(palette.primary.main, isDark ? 0.1 : 0.05),
-                                            borderColor: withAlpha(palette.primary.main, isDark ? 0.28 : 0.18)
-                                          }}
-                                        />
-                                      )}
-                                    </Stack>
-                                  </ListItem>
-                                )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </List>
-                        )}
-                      </Droppable>
-                    </DragDropContext>
+                                    </Draggable>
+                                  );
+                                })}
+                                {provided.placeholder}
+                              </List>
+                            )}
+                          </Droppable>
+                        </DragDropContext>
+                      )}
+                    </Box>
                   </Box>
                 )}
               </Paper>
@@ -540,6 +879,14 @@ export default function GroupSortDialog({ open, onClose, showMessage }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={t('subscriptions.sort.unsavedTitle')}
+        content={t('subscriptions.sort.unsavedConfirm')}
+        onClose={() => setPendingAction(null)}
+        onConfirm={handleConfirmDiscard}
+      />
 
       {!showMessage && (
         <Snackbar

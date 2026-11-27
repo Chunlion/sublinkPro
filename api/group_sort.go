@@ -46,6 +46,14 @@ func GroupSortSave(c *gin.Context) {
 		utils.FailWithMsg(c, "分组名称不能为空")
 		return
 	}
+	if req.NodeIDs != nil && req.AirportSorts != nil {
+		utils.FailWithMsg(c, "不能同时指定节点排序和机场排序")
+		return
+	}
+	if req.NodeIDs == nil && req.AirportSorts == nil {
+		utils.FailWithMsg(c, "排序配置不能为空")
+		return
+	}
 
 	var err error
 	if req.NodeIDs != nil {

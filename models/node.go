@@ -515,6 +515,15 @@ func (node *Node) Update() error {
 	if err := EnsureNodeNameAvailable(node.Name, node.ID); err != nil {
 		return err
 	}
+	oldGroup := ""
+	if cachedOld, ok := nodeCache.Get(node.ID); ok {
+		oldGroup = cachedOld.Group
+	} else {
+		var existing Node
+		if err := database.DB.Select("group").First(&existing, node.ID).Error; err == nil {
+			oldGroup = existing.Group
+		}
+	}
 	node.syncLinkHash()
 	node.UpdatedAt = time.Now()
 	// Write-Through: 先写数据库
@@ -547,6 +556,11 @@ func (node *Node) Update() error {
 		if err := database.DB.First(&fullNode, node.ID).Error; err == nil {
 			nodeCache.Set(node.ID, fullNode)
 		}
+	}
+	if oldGroup != "" && oldGroup != node.Group {
+		PruneGroupNodeOrders(map[string]map[int]struct{}{
+			oldGroup: {node.ID: {}},
+		})
 	}
 	return nil
 }
@@ -1574,8 +1588,47 @@ func FilterNodesByTags(nodes []Node, tags []string) []Node {
 	return filtered
 }
 
+// ListNodesByGroup 获取单个分组的节点列表，优先走 group 二级索引并按 ID 升序稳定返回。
+func ListNodesByGroup(groupName string) ([]Node, error) {
+	if nodes := nodeCache.GetByIndex("group", groupName); len(nodes) > 0 {
+		sort.Slice(nodes, func(i, j int) bool {
+			return nodes[i].ID < nodes[j].ID
+		})
+		return nodes, nil
+	}
+	if nodeCache.Count() > 0 {
+		return []Node{}, nil
+	}
+	var groupNodes []Node
+	if err := database.DB.Table("nodes").
+		Where(clause.Eq{Column: clause.Column{Table: "nodes", Name: "group"}, Value: groupName}).
+		Order("nodes.id ASC").
+		Find(&groupNodes).Error; err != nil {
+		return nil, err
+	}
+	return groupNodes, nil
+}
+
+func addRemovedGroupNodeID(groupToIDs map[string]map[int]struct{}, group string, id int) {
+	if group == "" || id <= 0 {
+		return
+	}
+	set, ok := groupToIDs[group]
+	if !ok {
+		set = make(map[int]struct{})
+		groupToIDs[group] = set
+	}
+	set[id] = struct{}{}
+}
+
 // Del 删除节点
 func (node *Node) Del() error {
+	group := node.Group
+	if group == "" {
+		if cached, ok := nodeCache.Get(node.ID); ok {
+			group = cached.Group
+		}
+	}
 	// 先清除节点与订阅的关联关系
 	if err := database.DB.Exec("DELETE FROM subcription_nodes WHERE node_id = ?", node.ID).Error; err != nil {
 		return err
@@ -1587,6 +1640,11 @@ func (node *Node) Del() error {
 	}
 	// 再更新缓存
 	nodeCache.Delete(node.ID)
+	if group != "" {
+		PruneGroupNodeOrders(map[string]map[int]struct{}{
+			group: {node.ID: {}},
+		})
+	}
 	return nil
 }
 
@@ -1620,8 +1678,10 @@ func DeleteAutoSubscriptionNodes(sourceId int) error {
 	// 使用二级索引获取要删除的节点
 	nodesToDelete := nodeCache.GetByIndex("sourceID", strconv.Itoa(sourceId))
 	nodeIDs := make([]int, 0, len(nodesToDelete))
+	removedByGroup := make(map[string]map[int]struct{})
 	for _, n := range nodesToDelete {
 		nodeIDs = append(nodeIDs, n.ID)
+		addRemovedGroupNodeID(removedByGroup, n.Group, n.ID)
 	}
 
 	// 清除节点与订阅的关联关系
@@ -1641,7 +1701,33 @@ func DeleteAutoSubscriptionNodes(sourceId int) error {
 	for _, n := range nodesToDelete {
 		nodeCache.Delete(n.ID)
 	}
+	PruneGroupNodeOrders(removedByGroup)
 	return nil
+}
+
+func collectRemovedGroupNodeIDs(ids []int, skipGroup string, hasSkipGroup bool) map[string]map[int]struct{} {
+	removedByGroup := make(map[string]map[int]struct{})
+	var missedIDs []int
+	for _, id := range ids {
+		if n, ok := nodeCache.Get(id); ok {
+			if !hasSkipGroup || n.Group != skipGroup {
+				addRemovedGroupNodeID(removedByGroup, n.Group, id)
+			}
+		} else {
+			missedIDs = append(missedIDs, id)
+		}
+	}
+	if len(missedIDs) > 0 {
+		var dbNodes []Node
+		if err := database.DB.Where("id IN ?", missedIDs).Find(&dbNodes).Error; err == nil {
+			for _, n := range dbNodes {
+				if !hasSkipGroup || n.Group != skipGroup {
+					addRemovedGroupNodeID(removedByGroup, n.Group, n.ID)
+				}
+			}
+		}
+	}
+	return removedByGroup
 }
 
 // BatchDel 批量删除节点 - 使用事务保证原子性
@@ -1649,6 +1735,8 @@ func BatchDel(ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
+
+	removedByGroup := collectRemovedGroupNodeIDs(ids, "", false)
 
 	// 使用事务原子删除
 	err := database.WithTransaction(func(tx *gorm.DB) error {
@@ -1674,6 +1762,7 @@ func BatchDel(ids []int) error {
 	for _, id := range ids {
 		nodeCache.Delete(id)
 	}
+	PruneGroupNodeOrders(removedByGroup)
 	return nil
 }
 
@@ -1682,6 +1771,8 @@ func BatchUpdateGroup(ids []int, group string) error {
 	if len(ids) == 0 {
 		return nil
 	}
+
+	removedByGroup := collectRemovedGroupNodeIDs(ids, group, true)
 
 	// 使用事务更新
 	err := database.WithTransaction(func(tx *gorm.DB) error {
@@ -1699,6 +1790,7 @@ func BatchUpdateGroup(ids []int, group string) error {
 			nodeCache.Set(id, n)
 		}
 	}
+	PruneGroupNodeOrders(removedByGroup)
 	return nil
 }
 
@@ -1839,6 +1931,14 @@ func ListBySourceID(sourceID int) ([]Node, error) {
 
 // UpdateNodesBySourceID 根据订阅ID批量更新节点的来源名称和分组
 func UpdateNodesBySourceID(sourceID int, sourceName string, group string) error {
+	nodesToUpdate := nodeCache.GetByIndex("sourceID", strconv.Itoa(sourceID))
+	removedByGroup := make(map[string]map[int]struct{})
+	for _, n := range nodesToUpdate {
+		if n.Group != group {
+			addRemovedGroupNodeID(removedByGroup, n.Group, n.ID)
+		}
+	}
+
 	// Write-Through: 先更新数据库
 	updateFields := map[string]any{
 		"source": sourceName,
@@ -1849,12 +1949,12 @@ func UpdateNodesBySourceID(sourceID int, sourceName string, group string) error 
 	}
 
 	// 再更新缓存
-	nodesToUpdate := nodeCache.GetByIndex("sourceID", strconv.Itoa(sourceID))
 	for _, n := range nodesToUpdate {
 		n.Source = sourceName
 		n.Group = group
 		nodeCache.Set(n.ID, n)
 	}
+	PruneGroupNodeOrders(removedByGroup)
 	return nil
 }
 

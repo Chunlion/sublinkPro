@@ -522,6 +522,9 @@ func Run() {
 	if err := models.InitGroupAirportSortCache(); err != nil {
 		utils.Error("加载分组机场排序到缓存失败: %v", err)
 	}
+	if err := models.InitGroupNodeOrderCache(); err != nil {
+		utils.Error("加载分组节点排序到缓存失败: %v", err)
+	}
 	if err := models.InitAccessKeyCache(); err != nil {
 		utils.Error("加载AccessKey到缓存失败: %v", err)
 	}

@@ -354,6 +354,9 @@ func executeDatabaseMigration(ctx context.Context, taskID, uploadPath, originalN
 		if err := importGroupNodeOrders(state); err != nil {
 			return err
 		}
+		if err := reportStep(fmt.Sprintf("分组节点排序导入完成，共 %d 条", state.result.Imported["group_node_orders"]), nil); err != nil {
+			return err
+		}
 
 		if err := importNodeCheckProfiles(state); err != nil {
 			return err
@@ -1524,6 +1527,7 @@ func reloadRuntimeStateAfterMigration() error {
 		models.InitScriptCache,
 		models.InitAirportCache,
 		models.InitGroupAirportSortCache,
+		models.InitGroupNodeOrderCache,
 		models.InitAccessKeyCache,
 		models.InitNodeCheckProfileCache,
 		models.InitSubLogsCache,

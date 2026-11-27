@@ -80,7 +80,7 @@ Case 3: Access tracking
 - Dynamic airport selection stores airport IDs and resolves the current nodes imported from those airports whenever the subscription is generated.
 - Mixed mode can combine manual nodes, dynamic groups, and dynamic airports. Output order follows the configured sort order, and duplicate effective node names keep the first occurrence.
 
-In **Subscriptions → Group sort**, choose a group and use **Sort by node** to drag individual nodes into order. Saving applies to every subscription that references the group. New nodes follow the saved nodes in airport order. **Reset sort** on the node tab restores airport order for the whole group. Within each airport, nodes follow the upstream subscription order.
+In **Subscriptions → Group sort**, choose a group and use **Sort by node** to drag individual nodes (or filter and use the quick move buttons) into order. Saving applies to every subscription that references the group. New nodes follow the saved nodes in airport order. **Reset sort** on the node tab restores airport order for the whole group. Within each airport, nodes follow the upstream subscription order.
 
 ## Node Naming Variables
 

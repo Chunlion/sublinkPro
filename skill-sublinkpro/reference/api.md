@@ -717,9 +717,9 @@ Base: `/api/v1/geoip`
 
 Base: `/api/v1/group-sort`
 
-- **GET** `/group-sort/groups`
-- **GET** `/group-sort/detail` (query: `?group=<name>`) returns `airports` and the ordered `nodes` (`id`, `name`).
-- **POST** `/group-sort/save` — **JSON** `{"groupName":"...", "airportSorts":[...]}` to set airport order, or `{"groupName":"...", "nodeIds":[12,5]}` to set node order. Omitted nodes follow in airport order. Send an empty array for the order you want to reset.
+- **GET** `/group-sort/groups` returns group summaries (`groupName`, `nodeCount`, `airportCount`, `hasSortConfig`, `hasAirportSort`, `hasNodeOrder`).
+- **GET** `/group-sort/detail` (query: `?group=<name>`) returns `groupName`, `hasAirportSort`, `hasNodeOrder`, `airports`, and the ordered `nodes` (`id`, `name`, `airportId`, `airportName`, `protocol`, `delayTime`, `speed`, `inSavedOrder`).
+- **POST** `/group-sort/save` — **JSON** `{"groupName":"...", "airportSorts":[...]}` to set airport order, or `{"groupName":"...", "nodeIds":[12,5]}` to set node order (`airportSorts` and `nodeIds` cannot both be set in one request; `nodeIds` are deduplicated and filtered to nodes in the target group). Omitted nodes follow in airport order. Send an empty array for the order you want to reset.
 
 ---
 

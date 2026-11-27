@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -128,6 +129,12 @@ func setupClientsAPITestDB(t *testing.T) {
 	}
 	if err := models.InitSettingCache(); err != nil {
 		t.Fatalf("init setting cache: %v", err)
+	}
+	if err := models.InitGroupAirportSortCache(); err != nil {
+		t.Fatalf("init group airport sort cache: %v", err)
+	}
+	if err := models.InitGroupNodeOrderCache(); err != nil {
+		t.Fatalf("init group node order cache: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -408,6 +415,69 @@ func TestGroupNodeOrderIsSharedByPreviewAndClashExport(t *testing.T) {
 
 	save(models.SaveGroupSortRequest{GroupName: group, NodeIDs: []int{}})
 	assertOrder([]string{"B1", "B2", "A1", "A2", "A3"})
+}
+
+func TestGroupSortSaveValidationAndDetailMetadata(t *testing.T) {
+	setupClientsAPITestDB(t)
+	const group = "group-sort-meta-test"
+
+	nodeA := models.Node{
+		Name: "NodeA", LinkName: "NodeA", Group: group, SourceID: 0,
+		Link: "ss://YWVzLTEyOC1nY206cGFzc0BleGFtcGxlLmNvbTo0NDM=#NodeA", Protocol: "ss",
+	}
+	nodeB := models.Node{
+		Name: "NodeB", LinkName: "NodeB", Group: group, SourceID: 0,
+		Link: "ss://YWVzLTEyOC1nY206cGFzc0BleGFtcGxlLmNvbTo0NDM=#NodeB", Protocol: "ss",
+	}
+	if err := nodeA.Add(); err != nil {
+		t.Fatal(err)
+	}
+	if err := nodeB.Add(); err != nil {
+		t.Fatal(err)
+	}
+
+	postSave := func(payload string) int {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/group-sort/save", strings.NewReader(payload))
+		GroupSortSave(ctx)
+		var response struct{ Code int }
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode response %s: %v", recorder.Body.String(), err)
+		}
+		return response.Code
+	}
+
+	if code := postSave(`{"groupName":"` + group + `"}`); code == http.StatusOK {
+		t.Fatalf("expected empty sort payload to fail, got code %d", code)
+	}
+	if code := postSave(`{"groupName":"` + group + `","nodeIds":[1],"airportSorts":[]}`); code == http.StatusOK {
+		t.Fatalf("expected dual sort payload to fail, got code %d", code)
+	}
+	if code := postSave(`{"groupName":"` + group + `","nodeIds":[` + strconv.Itoa(nodeB.ID) + `]}`); code != http.StatusOK {
+		t.Fatalf("expected nodeIds save to succeed, got code %d", code)
+	}
+
+	detail, err := models.GetGroupDetail(group)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.HasNodeOrder || detail.HasAirportSort {
+		t.Fatalf("unexpected flags: hasNodeOrder=%v hasAirportSort=%v", detail.HasNodeOrder, detail.HasAirportSort)
+	}
+	if len(detail.Nodes) != 2 {
+		t.Fatalf("detail.Nodes len = %d, want 2", len(detail.Nodes))
+	}
+	if detail.Nodes[0].ID != nodeB.ID || !detail.Nodes[0].InSavedOrder {
+		t.Fatalf("first node = %+v, want ID=%d InSavedOrder=true", detail.Nodes[0], nodeB.ID)
+	}
+	if detail.Nodes[1].ID != nodeA.ID || detail.Nodes[1].InSavedOrder {
+		t.Fatalf("second node = %+v, want ID=%d InSavedOrder=false", detail.Nodes[1], nodeA.ID)
+	}
+	if detail.Nodes[0].AirportName == "" || detail.Nodes[0].Protocol != "ss" {
+		t.Fatalf("missing node metadata: %+v", detail.Nodes[0])
+	}
 }
 
 // clashProxyNamesFromBody 从 Clash YAML 输出中提取最终 proxy.name。

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // subcriptionCache 使用新的泛型缓存
@@ -724,11 +723,7 @@ func (sub *Subcription) GetSub(clientType string) error {
 	}
 	groupNodeMap := make(map[string][]Node) // groupName -> nodes
 	for _, group := range groups {
-		var groupNodes []Node
-		err = database.DB.Table("nodes").
-			Where(clause.Eq{Column: clause.Column{Table: "nodes", Name: "group"}, Value: group.GroupName}).
-			Order("nodes.id ASC").
-			Find(&groupNodes).Error
+		groupNodes, err := ListNodesByGroup(group.GroupName)
 		if err != nil {
 			return err
 		}
@@ -783,14 +778,9 @@ func (sub *Subcription) GetSub(clientType string) error {
 	}
 
 	// 按排序值排序混合列表
-	// 使用简单的冒泡排序
-	for i := 0; i < len(mixedItems); i++ {
-		for j := i + 1; j < len(mixedItems); j++ {
-			if mixedItems[i].Sort > mixedItems[j].Sort {
-				mixedItems[i], mixedItems[j] = mixedItems[j], mixedItems[i]
-			}
-		}
-	}
+	sort.SliceStable(mixedItems, func(i, j int) bool {
+		return mixedItems[i].Sort < mixedItems[j].Sort
+	})
 
 	// 按排序后的顺序构建最终节点列表
 	nodeMap := make(map[string]bool) // 用于去重
